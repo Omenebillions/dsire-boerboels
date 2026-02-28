@@ -7,11 +7,11 @@ import WhyChooseUs from '@/app/components/WhyChooseUs';
 
 export default function Page() {
   return (
-    <div>
-      {/* HERO SECTION - Enhanced with overlay, gradient, and CTA buttons */}
-      <section className="relative h-[80vh] bg-[url('/hero.jpg')] bg-cover bg-center">
-        {/* Dark overlay with gradient */}
-        <div className="absolute inset-0 bg-gradient-to-r from-black/70 to-black/40"></div>
+   <div>
+  {/* HERO SECTION - Using hero.png from public folder */}
+  <section className="relative h-[80vh] bg-cover bg-center" style={{ backgroundImage: "url('/hero.png')" }}>
+    {/* Dark overlay with gradient */}
+    <div className="absolute inset-0 bg-gradient-to-r from-black/70 to-black/40"></div>
         
         {/* Content */}
         <div className="relative h-full max-w-7xl mx-auto px-6 flex flex-col justify-center">
@@ -30,22 +30,31 @@ export default function Page() {
           <p className="text-xl text-gray-200 mt-6 max-w-2xl">
             Home of champion bloodlines. Ethically bred for health, temperament, and conformation.
           </p>
-          
-          {/* CTA Buttons */}
-          <div className="flex flex-wrap gap-4 mt-10">
-            <Link 
-              href="/puppies" 
-              className="bg-yellow-500 text-black px-8 py-4 rounded-lg font-semibold hover:bg-yellow-400 transition transform hover:scale-105 shadow-lg"
-            >
-              View Available Puppies →
-            </Link>
-            <Link 
-              href="/contact" 
-              className="bg-white text-black px-8 py-4 rounded-lg font-semibold hover:bg-gray-100 transition transform hover:scale-105 shadow-lg"
-            >
-              WhatsApp Us
-            </Link>
-          </div>
+          // app/page.tsx - Find the WhatsApp Us button and update it
+
+{/* CTA Buttons */}
+<div className="flex flex-wrap gap-4 mt-10">
+  <Link 
+    href="/puppies" 
+    className="bg-yellow-500 text-black px-8 py-4 rounded-lg font-semibold hover:bg-yellow-400 transition transform hover:scale-105 shadow-lg"
+  >
+    View Available Puppies →
+  </Link>
+  
+  {/* UPDATED: WhatsApp button with actual number */}
+  <a 
+    href="https://wa.me/2347019996837" 
+    target="_blank" 
+    rel="noopener noreferrer"
+    className="bg-white text-black px-8 py-4 rounded-lg font-semibold hover:bg-gray-100 transition transform hover:scale-105 shadow-lg flex items-center gap-2"
+  >
+    <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 24 24">
+      <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.299.045-.677.063-1.092-.069-.252-.08-.575-.187-.988-.365-1.739-.751-2.874-2.502-2.961-2.617-.087-.116-.708-.94-.708-1.793s.448-1.273.607-1.446c.159-.173.346-.217.462-.217l.332.006c.106.005.249-.04.39.298.144.347.491 1.2.534 1.287.043.087.072.188.014.304-.058.116-.087.188-.173.289l-.26.304c-.087.087-.177.181-.076.354.101.174.449.741.964 1.201.662.591 1.221.774 1.394.86s.274.072.376-.043c.101-.116.433-.506.549-.68.116-.173.231-.145.39-.087s1.011.477 1.184.564c.173.087.289.13.332.202.043.072.043.419-.101.824z"/>
+    </svg>
+    WhatsApp Us
+  </a>
+</div>
+    
           
           {/* Social Proof */}
           <div className="flex items-center gap-6 mt-12">
@@ -167,7 +176,7 @@ export default function Page() {
               Contact Us Now
             </Link>
             <a 
-              href="https://wa.me/2348000000000" 
+              href="https://wa.me/2347019996837" 
               target="_blank"
               rel="noopener noreferrer"
               className="bg-green-600 text-white px-8 py-4 rounded-lg font-semibold hover:bg-green-700 transition flex items-center gap-2"
