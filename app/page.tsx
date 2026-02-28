@@ -1,6 +1,6 @@
 // app/page.tsx
 import Link from 'next/link';
-import Image from 'next/image';
+import HeroImage from '@/app/components/HeroImage';
 import InstagramFeed from '@/app/components/InstagramFeed';
 import FeaturedPuppies from '@/app/components/FeaturedPuppies';
 import TestimonialCarousel from '@/app/components/TestimonialCarousel';
@@ -9,27 +9,15 @@ import WhyChooseUs from '@/app/components/WhyChooseUs';
 export default function Page() {
   return (
     <div>
-      {/* HERO SECTION - Fixed with Next.js Image */}
+      {/* HERO SECTION - Fixed with Client Component */}
       <section className="relative h-[80vh] w-full overflow-hidden">
-        {/* Background Image using Next.js Image */}
-        <div className="absolute inset-0 w-full h-full">
-          <Image
-            src="/hero.png"
-            alt="Dsire Boerboels - Premium Boerboel Kennel"
-            fill
-            className="object-cover"
-            priority
-            onError={(e) => {
-              // Fallback if image fails to load
-              console.log('Image failed to load, check if hero.png exists in public folder');
-            }}
-          />
-        </div>
+        {/* Background Image using Client Component */}
+        <HeroImage />
         
         {/* Dark overlay with gradient */}
         <div className="absolute inset-0 bg-gradient-to-r from-black/70 to-black/40"></div>
         
-        {/* Content */}
+        {/* Content - keep the rest exactly the same */}
         <div className="relative h-full max-w-7xl mx-auto px-6 flex flex-col justify-center">
           {/* Badge */}
           <span className="inline-block bg-yellow-500 text-black text-sm font-semibold px-4 py-2 rounded-full mb-6 w-fit">
@@ -90,6 +78,7 @@ export default function Page() {
         </div>
       </section>
 
+      {/* Rest of your page remains exactly the same */}
       {/* TRUST BADGES / STATS SECTION */}
       <section className="bg-gray-50 py-12 border-y border-gray-200">
         <div className="max-w-7xl mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-6">
@@ -145,7 +134,7 @@ export default function Page() {
               className="mt-4 md:mt-0 flex items-center gap-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white px-6 py-3 rounded-lg hover:opacity-90 transition"
             >
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zM5.838 12a6.162 6.162 0 1112.324 0 6.162 6.162 0 01-12.324 0zM12 16a4 4 0 110-8 4 4 0 010 8zm4.965-10.405a1.44 1.44 0 112.881.001 1.44 1.44 0 01-2.881-.001z"/>
+                <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM5.838 12a6.162 6.162 0 1112.324 0 6.162 6.162 0 01-12.324 0zM12 16a4 4 0 110-8 4 4 0 010 8z"/>
               </svg>
               Follow @dsireboerboels
             </a>
@@ -194,7 +183,7 @@ export default function Page() {
               className="bg-green-600 text-white px-8 py-4 rounded-lg font-semibold hover:bg-green-700 transition flex items-center gap-2"
             >
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.299.045-.677.063-1.092-.069-.252-.08-.575-.187-.988-.365-1.739-.751-2.874-2.502-2.961-2.617-.087-.116-.708-.94-.708-1.793s.448-1.273.607-1.446c.159-.173.346-.217.462-.217l.332.006c.106.005.249-.04.39.298.144.347.491 1.2.534 1.287.043.087.072.188.014.304-.058.116-.087.188-.173.289l-.26.304c-.087.087-.177.181-.076.354.101.174.449.741.964 1.201.662.591 1.221.774 1.394.86s.274.072.376-.043c.101-.116.433-.506.549-.68.116-.173.231-.145.39-.087s1.011.477 1.184.564c.173.087.289.13.332.202.043.072.043.419-.101.824z"/>
+                <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771z"/>
               </svg>
               WhatsApp Chat
             </a>
