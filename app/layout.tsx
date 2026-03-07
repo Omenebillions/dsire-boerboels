@@ -82,14 +82,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <p className="text-sm md:text-base">© {new Date().getFullYear()} Dsire Boerboels — All Rights Reserved</p>
           </div>
           <div className="mt-2 text-xs md:text-sm">
-            <span>A tintville Design. Powered by </span>
+            <span>A tintville Design. </span>
             <a 
               href="https://mthorg.com" 
               target="_blank" 
               rel="noopener noreferrer"
               className="text-black font-medium hover:underline"
             >
-              MatthOrg
+              
             </a>
           </div>
         </footer>

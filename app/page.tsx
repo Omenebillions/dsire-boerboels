@@ -1,7 +1,6 @@
 // app/page.tsx
 import Link from 'next/link';
 import HeroImage from '@/app/components/HeroImage';
-import InstagramFeed from '@/app/components/InstagramFeed';
 import FeaturedPuppies from '@/app/components/FeaturedPuppies';
 import TestimonialCarousel from '@/app/components/TestimonialCarousel';
 import WhyChooseUs from '@/app/components/WhyChooseUs';
@@ -9,33 +8,25 @@ import WhyChooseUs from '@/app/components/WhyChooseUs';
 export default function Page() {
   return (
     <div>
-      {/* HERO SECTION - Fixed with Client Component */}
+      {/* HERO SECTION */}
       <section className="relative h-[80vh] w-full overflow-hidden">
-        {/* Background Image using Client Component */}
         <HeroImage />
-        
-        {/* Dark overlay with gradient */}
         <div className="absolute inset-0 bg-gradient-to-r from-black/70 to-black/40"></div>
         
-        {/* Content - keep the rest exactly the same */}
         <div className="relative h-full max-w-7xl mx-auto px-6 flex flex-col justify-center">
-          {/* Badge */}
           <span className="inline-block bg-yellow-500 text-black text-sm font-semibold px-4 py-2 rounded-full mb-6 w-fit">
             🏆 Premier Boerboel Kennel in Nigeria
           </span>
           
-          {/* Main Heading */}
           <h1 className="text-5xl md:text-7xl font-bold text-white max-w-4xl leading-tight">
             Premium Boerboels
             <span className="block text-yellow-400">Strong • Healthy • Champion Bloodline</span>
           </h1>
           
-          {/* Subheading */}
           <p className="text-xl text-gray-200 mt-6 max-w-2xl">
             Home of champion bloodlines. Ethically bred for health, temperament, and conformation.
           </p>
           
-          {/* CTA Buttons */}
           <div className="flex flex-wrap gap-4 mt-10">
             <Link 
               href="/puppies" 
@@ -57,7 +48,6 @@ export default function Page() {
             </a>
           </div>
           
-          {/* Social Proof */}
           <div className="flex items-center gap-6 mt-12">
             <div className="flex -space-x-2">
               {[1,2,3,4].map((i) => (
@@ -70,7 +60,6 @@ export default function Page() {
           </div>
         </div>
         
-        {/* Scroll indicator */}
         <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 animate-bounce">
           <div className="w-6 h-10 border-2 border-white rounded-full flex justify-center">
             <div className="w-1 h-3 bg-white rounded-full mt-2"></div>
@@ -78,8 +67,7 @@ export default function Page() {
         </div>
       </section>
 
-      {/* Rest of your page remains exactly the same */}
-      {/* TRUST BADGES / STATS SECTION */}
+      {/* TRUST BADGES */}
       <section className="bg-gray-50 py-12 border-y border-gray-200">
         <div className="max-w-7xl mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-6">
           {[
@@ -96,7 +84,7 @@ export default function Page() {
         </div>
       </section>
 
-      {/* FEATURED PUPPIES SECTION */}
+      {/* FEATURED PUPPIES */}
       <section className="px-6 py-20 max-w-7xl mx-auto">
         <div className="flex justify-between items-end mb-12">
           <div>
@@ -118,8 +106,8 @@ export default function Page() {
         </div>
       </section>
 
-      {/* INSTAGRAM LIVE FEED SECTION */}
-      <section className="bg-gray-50 py-20">
+      {/* INSTAGRAM FEED */}
+      <section id="instagram-feed" className="bg-gray-50 py-20">
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-12">
             <div>
@@ -140,14 +128,18 @@ export default function Page() {
             </a>
           </div>
           
-          <InstagramFeed />
+          {/* Fouita Widget */}
+          <div className="fouita-widget-container">
+            <div data-key="Instagram Feed" className="ft" id="ftrc98dpg"></div>
+            <script src="https://wdg.fouita.com/widgets/0x3f59f8.js"></script>
+          </div>
         </div>
       </section>
 
-      {/* WHY CHOOSE US SECTION */}
+      {/* WHY CHOOSE US */}
       <WhyChooseUs />
 
-      {/* TESTIMONIALS SECTION */}
+      {/* TESTIMONIALS */}
       <section className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-12">
@@ -157,7 +149,6 @@ export default function Page() {
               Don't just take our word for it - hear from families who've welcomed our puppies home
             </p>
           </div>
-          
           <TestimonialCarousel />
         </div>
       </section>

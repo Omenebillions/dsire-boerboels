@@ -84,7 +84,7 @@ export default function FeaturedPuppies() {
                 Details
               </Link>
               <a 
-                href="https://wa.me/2348000000000" 
+                href="https://wa.me/2347019996837" 
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex-1 text-center bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition text-sm md:text-base"
