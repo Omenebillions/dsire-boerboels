@@ -102,7 +102,6 @@ export default function AdminLayout({
         </div>
       </header>
 
-      // app/admin/layout.tsx (Updated Navigation Section)
 <nav className="bg-white border-b">
   <div className="max-w-7xl mx-auto px-4">
     <div className="flex space-x-6 overflow-x-auto py-2">
