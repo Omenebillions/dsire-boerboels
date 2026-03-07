@@ -147,7 +147,7 @@ export default function MobileMenu() {
             
             {/* Admin Dashboard Button in Mobile Menu */}
             <a 
-              href="https://mthorg.com/login"
+              href="/admin/login"
               target="_blank"
               rel="noopener noreferrer"
               className="bg-black text-white px-8 py-4 rounded-lg font-bold text-xl w-full text-center hover:bg-gray-800 transition"

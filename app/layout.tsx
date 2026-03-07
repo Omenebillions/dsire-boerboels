@@ -63,7 +63,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div className="flex items-center space-x-4">
             {/* Desktop Admin Button */}
             <Link
-              href="https://mthorg.com/login"
+              href="/admin/login"
               className="hidden md:block px-5 py-2 bg-black text-white rounded-md hover:bg-gray-800 transition text-sm lg:text-base font-medium shadow-sm"
             >
               Admin Dashboard
