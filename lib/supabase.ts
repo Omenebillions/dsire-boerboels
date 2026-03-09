@@ -1,9 +1,15 @@
-// lib/supabase.ts
+// lib/supabase.ts - Add this debug line
 import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY  // Add this
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+// DEBUG: Check if key is loaded (remove after testing)
+console.log('Service Key loaded:', !!supabaseServiceKey)
+console.log('Service Key first 10 chars:', supabaseServiceKey?.substring(0, 10))
+
+// Rest of your code...
 
 // Check if environment variables are defined
 if (!supabaseUrl || !supabaseAnonKey) {
