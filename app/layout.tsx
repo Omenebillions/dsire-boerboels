@@ -62,12 +62,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
           <div className="flex items-center space-x-4">
             {/* Desktop Admin Button */}
-            <Link
-              href="/admin/login"
-              className="hidden md:block px-5 py-2 bg-black text-white rounded-md hover:bg-gray-800 transition text-sm lg:text-base font-medium shadow-sm"
-            >
-              Admin Dashboard
-            </Link>
+            
             
             {/* Mobile Menu Component */}
             <MobileMenu />
@@ -84,7 +79,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div className="mt-2 text-xs md:text-sm">
             <span>A tintville Design. </span>
             <a 
-              href="https://mthorg.com" 
+              href= 
               target="_blank" 
               rel="noopener noreferrer"
               className="text-black font-medium hover:underline"

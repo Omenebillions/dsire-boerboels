@@ -145,16 +145,7 @@ export default function MobileMenu() {
             {/* Divider */}
             <div className="w-16 h-0.5 bg-gray-200 my-4"></div>
             
-            {/* Admin Dashboard Button in Mobile Menu */}
-            <a 
-              href="/admin/login"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="bg-black text-white px-8 py-4 rounded-lg font-bold text-xl w-full text-center hover:bg-gray-800 transition"
-              onClick={() => setIsOpen(false)}
-            >
-              Admin Dashboard
-            </a>
+            
             
             {/* Social Links */}
             <div className="flex gap-6 mt-8">
