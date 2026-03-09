@@ -25,6 +25,7 @@ interface Product {
   name: string;
   price: number;
   cost?: number;
+  stock?: number;  // ← ADDED THIS LINE
 }
 
 export default function NewSalePage() {
@@ -93,7 +94,7 @@ export default function NewSalePage() {
     // Fetch products
     const { data: productsData } = await supabase
       .from('products')
-      .select('id, name, price, cost')
+      .select('id, name, price, cost, stock')  // ← ADDED stock HERE
       .eq('in_stock', true)
       .order('name');
     setProducts(productsData || []);

@@ -78,14 +78,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </div>
           <div className="mt-2 text-xs md:text-sm">
             <span>A tintville Design. </span>
-            <a 
-              href= 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-black font-medium hover:underline"
-            >
-              
-            </a>
           </div>
         </footer>
       </body>
