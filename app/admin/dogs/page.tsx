@@ -1,212 +1,219 @@
-// app/admin/dogs/new/page.tsx
+// app/admin/dogs/page.tsx
 "use client";
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import Image from 'next/image';
 
-export default function NewDogPage() {
-  const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [type, setType] = useState('puppy');
-  
-  // Form data
-  const [formData, setFormData] = useState({
-    name: '',
-    price: '',
-    status: 'available',
-    age: '',
-    color: '',
-    weight: '',
-    height: '',
-    description: '',
-    images: [] as string[],
-    pedigree: '',
-    parents: '',
-    next_heat: '',
-    last_heat: '',
-    litter_count: '0',
-  });
+// Define the Dog interface
+interface Dog {
+  id: number;
+  name: string;
+  type: string;
+  status: string;
+  price?: number;
+  age?: string;
+  color?: string;
+  weight?: string;
+  height?: string;
+  description?: string;
+  images?: string[];
+  pedigree?: string;
+  parents?: string;
+  featured?: boolean;
+  next_heat?: string;
+  last_heat?: string;
+  litter_count?: number;
+  breeding_status?: string;
+  preferred_stud?: string;
+  created_at?: string;
+}
 
-  // Image upload state
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState('');
+export default function AdminDogsPage() {
+  const [dogs, setDogs] = useState<Dog[]>([]);
+  const [filterType, setFilterType] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setImageFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+  useEffect(() => {
+    fetchDogs();
+  }, [filterType, filterStatus]);
 
-  const uploadImage = async (file: File): Promise<string | null> => {
-    setUploading(true);
-    try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-      const filePath = `dogs/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('dog-images')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('dog-images')
-        .getPublicUrl(filePath);
-
-      return publicUrl;
-    } catch (error) {
-      console.error('Error uploading image:', error);
-      alert('Failed to upload image');
-      return null;
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const fetchDogs = async () => {
     setLoading(true);
-
-    let imageUrls = [...formData.images];
+    let query = supabase.from('dogs').select('*');
     
-    // Upload new image if selected
-    if (imageFile) {
-      const uploadedUrl = await uploadImage(imageFile);
-      if (uploadedUrl) {
-        imageUrls = [uploadedUrl, ...imageUrls];
-      }
+    if (filterType !== 'all') {
+      query = query.eq('type', filterType);
     }
-
-    const dogData = {
-      name: formData.name,
-      type: type,
-      status: formData.status,
-      price: formData.price ? Number(formData.price) : null,
-      age: formData.age || null,
-      color: formData.color || null,
-      weight: formData.weight || null,
-      height: formData.height || null,
-      description: formData.description || null,
-      images: imageUrls,
-      pedigree: formData.pedigree || null,
-      parents: formData.parents || null,
-      next_heat: formData.next_heat || null,
-      last_heat: formData.last_heat || null,
-      litter_count: formData.litter_count ? Number(formData.litter_count) : 0,
-    };
-
-    const { error } = await supabase.from('dogs').insert([dogData]);
-
-    if (error) {
-      alert('Error adding dog: ' + error.message);
-    } else {
-      alert('Dog added successfully!');
-      router.push('/admin/dogs');
+    
+    if (filterStatus !== 'all') {
+      query = query.eq('status', filterStatus);
     }
+    
+    const { data } = await query.order('created_at', { ascending: false });
+    setDogs((data as Dog[]) || []);
     setLoading(false);
   };
 
-  return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-3xl mx-auto px-4">
-        <h1 className="text-3xl font-bold mb-6">Add New Dog</h1>
+  const updateStatus = async (id: number, newStatus: string) => {
+    const { error } = await supabase
+      .from('dogs')
+      .update({ status: newStatus })
+      .eq('id', id);
+    
+    if (!error) {
+      fetchDogs();
+    }
+  };
 
-        {/* Type Selector */}
-        <div className="flex gap-4 mb-6">
-          {[
-            { value: 'puppy', label: '🐕 Puppy' },
-            { value: 'stud', label: '👑 Stud' },
-            { value: 'female', label: '🐩 Female' }
-          ].map((option) => (
-            <button
-              key={option.value}
-              onClick={() => setType(option.value)}
-              className={`flex-1 py-3 rounded-lg font-bold ${
-                type === option.value 
-                  ? 'bg-black text-white' 
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
+  const deleteDog = async (id: number, name: string) => {
+    if (confirm(`Are you sure you want to delete ${name}?`)) {
+      const { error } = await supabase.from('dogs').delete().eq('id', id);
+      if (!error) {
+        fetchDogs();
+      }
+    }
+  };
+
+  const getStatusBadgeColor = (status: string) => {
+    switch(status) {
+      case 'available': return 'bg-green-100 text-green-800';
+      case 'reserved': return 'bg-yellow-100 text-yellow-800';
+      case 'sold': return 'bg-gray-100 text-gray-800';
+      case 'retired': return 'bg-blue-100 text-blue-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getTypeIcon = (type: string) => {
+    switch(type) {
+      case 'puppy': return '🐕';
+      case 'stud': return '👑';
+      case 'female': return '🐩';
+      default: return '🐕';
+    }
+  };
+
+  // Filter by search term
+  const filteredDogs = dogs.filter((dog: Dog) => 
+    dog.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    dog.color?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // Calculate stats
+  const stats = {
+    total: dogs.length,
+    available: dogs.filter((d: Dog) => d.status === 'available').length,
+    reserved: dogs.filter((d: Dog) => d.status === 'reserved').length,
+    sold: dogs.filter((d: Dog) => d.status === 'sold').length,
+    puppies: dogs.filter((d: Dog) => d.type === 'puppy').length,
+    studs: dogs.filter((d: Dog) => d.type === 'stud').length,
+    females: dogs.filter((d: Dog) => d.type === 'female').length
+  };
+
+  if (loading) return (
+    <div className="min-h-screen bg-gray-50 p-8">
+      <div className="max-w-7xl mx-auto">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-48 mb-6"></div>
+          <div className="grid grid-cols-4 gap-4 mb-6">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-24 bg-gray-200 rounded"></div>
+            ))}
+          </div>
+          <div className="h-96 bg-gray-200 rounded"></div>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+          <div>
+            <h1 className="text-3xl font-bold">🐕 Dog Management</h1>
+            <p className="text-gray-500 text-sm mt-1">Manage all dogs, puppies, studs, and females</p>
+          </div>
+          <div className="flex gap-2">
+            <Link 
+              href="/admin/dogs/new" 
+              className="bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 flex items-center gap-2"
             >
-              {option.label}
-            </button>
-          ))}
+              <span>➕</span> Add New Dog
+            </Link>
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow space-y-4">
-          {/* Image Upload Section */}
-          <div className="space-y-4">
-            <h2 className="text-lg font-semibold border-b pb-2">📸 Photos</h2>
-            
-            <div>
-              <label className="block font-medium mb-1">Upload Image</label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleImageChange}
-                className="w-full p-2 border rounded"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Upload a photo of the dog (JPEG, PNG)
-              </p>
-            </div>
-
-            {imagePreview && (
-              <div className="mt-2">
-                <p className="text-sm font-medium mb-1">Preview:</p>
-                <div className="relative w-32 h-32 border rounded overflow-hidden">
-                  <Image
-                    src={imagePreview}
-                    alt="Preview"
-                    fill
-                    className="object-cover"
-                  />
-                </div>
-              </div>
-            )}
-
-            {formData.images.length > 0 && (
-              <div>
-                <p className="text-sm font-medium mb-2">Existing Images:</p>
-                <div className="flex gap-2 flex-wrap">
-                  {formData.images.map((img, idx) => (
-                    <div key={idx} className="relative w-16 h-16 border rounded overflow-hidden">
-                      <Image src={img} alt={`Dog ${idx}`} fill className="object-cover" />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+        {/* Stats Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-7 gap-3 mb-6">
+          <div className="bg-white p-3 rounded-lg shadow text-center">
+            <p className="text-xs text-gray-500">Total</p>
+            <p className="text-xl font-bold">{stats.total}</p>
           </div>
+          <div className="bg-white p-3 rounded-lg shadow text-center border-l-4 border-green-500">
+            <p className="text-xs text-gray-500">Available</p>
+            <p className="text-xl font-bold text-green-600">{stats.available}</p>
+          </div>
+          <div className="bg-white p-3 rounded-lg shadow text-center border-l-4 border-yellow-500">
+            <p className="text-xs text-gray-500">Reserved</p>
+            <p className="text-xl font-bold text-yellow-600">{stats.reserved}</p>
+          </div>
+          <div className="bg-white p-3 rounded-lg shadow text-center border-l-4 border-gray-500">
+            <p className="text-xs text-gray-500">Sold</p>
+            <p className="text-xl font-bold text-gray-600">{stats.sold}</p>
+          </div>
+          <div className="bg-white p-3 rounded-lg shadow text-center">
+            <p className="text-xs text-gray-500">🐕 Puppies</p>
+            <p className="text-xl font-bold">{stats.puppies}</p>
+          </div>
+          <div className="bg-white p-3 rounded-lg shadow text-center">
+            <p className="text-xs text-gray-500">👑 Studs</p>
+            <p className="text-xl font-bold">{stats.studs}</p>
+          </div>
+          <div className="bg-white p-3 rounded-lg shadow text-center">
+            <p className="text-xs text-gray-500">🐩 Females</p>
+            <p className="text-xl font-bold">{stats.females}</p>
+          </div>
+        </div>
 
-          {/* Rest of your form fields... */}
-          <div className="grid md:grid-cols-2 gap-4">
+        {/* Search and Filters */}
+        <div className="bg-white p-4 rounded-lg shadow mb-6">
+          <div className="grid md:grid-cols-3 gap-4">
             <div>
-              <label className="block font-medium mb-1">Name *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
               <input
                 type="text"
-                required
-                value={formData.name}
-                onChange={(e) => setFormData({...formData, name: e.target.value})}
+                placeholder="Search by name or color..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full p-2 border rounded"
               />
             </div>
             <div>
-              <label className="block font-medium mb-1">Status</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Filter by Type</label>
               <select
-                value={formData.status}
-                onChange={(e) => setFormData({...formData, status: e.target.value})}
+                value={filterType}
+                onChange={(e) => setFilterType(e.target.value)}
                 className="w-full p-2 border rounded"
               >
+                <option value="all">All Types</option>
+                <option value="puppy">🐕 Puppies</option>
+                <option value="stud">👑 Studs</option>
+                <option value="female">🐩 Females</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Filter by Status</label>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="w-full p-2 border rounded"
+              >
+                <option value="all">All Statuses</option>
                 <option value="available">✅ Available</option>
                 <option value="reserved">⏳ Reserved</option>
                 <option value="sold">💰 Sold</option>
@@ -214,28 +221,122 @@ export default function NewDogPage() {
               </select>
             </div>
           </div>
+        </div>
 
-          {/* Price field */}
-          <div>
-            <label className="block font-medium mb-1">Price (₦)</label>
-            <input
-              type="number"
-              value={formData.price}
-              onChange={(e) => setFormData({...formData, price: e.target.value})}
-              className="w-full p-2 border rounded"
-            />
+        {/* Dogs Table */}
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="p-3 text-left">Photo</th>
+                  <th className="p-3 text-left">Name</th>
+                  <th className="p-3 text-left">Type</th>
+                  <th className="p-3 text-left">Status</th>
+                  <th className="p-3 text-left">Price</th>
+                  <th className="p-3 text-left">Details</th>
+                  <th className="p-3 text-left">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredDogs.map((dog: Dog) => (
+                  <tr key={dog.id} className="border-t hover:bg-gray-50">
+                    <td className="p-2">
+                      <div className="w-12 h-12 bg-gray-200 rounded-full overflow-hidden">
+                        {dog.images?.[0] ? (
+                          <Image 
+                            src={dog.images[0]} 
+                            alt={dog.name}
+                            width={48}
+                            height={48}
+                            className="object-cover w-full h-full"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-2xl bg-gray-100">
+                            {getTypeIcon(dog.type)}
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="p-3 font-medium">
+                      {dog.name}
+                      {dog.featured && (
+                        <span className="ml-2 text-yellow-500" title="Featured">⭐</span>
+                      )}
+                    </td>
+                    <td className="p-3">
+                      <span className="flex items-center gap-1">
+                        {getTypeIcon(dog.type)} {dog.type}
+                      </span>
+                    </td>
+                    <td className="p-3">
+                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusBadgeColor(dog.status)}`}>
+                        {dog.status}
+                      </span>
+                    </td>
+                    <td className="p-3 font-medium">
+                      {dog.price ? `₦${dog.price.toLocaleString()}` : '-'}
+                    </td>
+                    <td className="p-3 text-sm text-gray-600">
+                      {dog.type === 'female' && dog.next_heat && (
+                        <div title="Next Heat">🔥 {new Date(dog.next_heat).toLocaleDateString()}</div>
+                      )}
+                      {dog.type === 'stud' && (
+                        <div>{dog.weight || '-'} • {dog.height || '-'}</div>
+                      )}
+                      {dog.type === 'puppy' && (
+                        <div>🎂 {dog.age || '-'}</div>
+                      )}
+                      {dog.color && <div className="text-xs">🎨 {dog.color}</div>}
+                    </td>
+                    <td className="p-3">
+                      <div className="flex flex-col gap-2">
+                        <select
+                          value={dog.status || 'available'}
+                          onChange={(e) => updateStatus(dog.id, e.target.value)}
+                          className="border rounded p-1 text-sm"
+                          aria-label="Change status"
+                        >
+                          <option value="available">✅ Available</option>
+                          <option value="reserved">⏳ Reserved</option>
+                          <option value="sold">💰 Sold</option>
+                          <option value="retired">👴 Retired</option>
+                        </select>
+                        <div className="flex gap-2">
+                          <Link 
+                            href={`/admin/dogs/edit/${dog.id}`}
+                            className="text-blue-600 hover:underline text-xs"
+                          >
+                            Edit
+                          </Link>
+                          <button 
+                            onClick={() => deleteDog(dog.id, dog.name)}
+                            className="text-red-600 hover:underline text-xs"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-
-          {/* Add remaining fields as needed */}
-
-          <button
-            type="submit"
-            disabled={loading || uploading}
-            className="w-full bg-black text-white py-3 rounded-lg hover:bg-gray-800 disabled:opacity-50"
-          >
-            {loading ? 'Adding...' : uploading ? 'Uploading...' : 'Add Dog'}
-          </button>
-        </form>
+          
+          {filteredDogs.length === 0 && (
+            <div className="text-center py-12">
+              <p className="text-gray-500 text-lg">No dogs found</p>
+              <p className="text-gray-400 text-sm mt-1">Try adjusting your filters</p>
+              <Link 
+                href="/admin/dogs/new" 
+                className="inline-block mt-4 bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800"
+              >
+                Add your first dog
+              </Link>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
