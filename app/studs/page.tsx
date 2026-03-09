@@ -159,21 +159,27 @@ export default function StudsPage() {
                   <div className="relative h-72 bg-gray-100">
                     {/* Main Image with Zoom on Hover */}
                     <div className="relative w-full h-full overflow-hidden">
-                      {stud.images && stud.images.length > 0 && !imageFailed ? (
-                        <Image
-                          src={stud.images[currentIndex]}
-                          alt={stud.name}
-                          fill
-                          className="object-cover transition-transform duration-700 group-hover:scale-110"
-                          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                          priority={currentIndex === 0}
-                          onError={() => handleImageError(stud.id, stud.images[currentIndex])}
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-6xl bg-blue-50">
-                          👑
-                        </div>
-                      )}
+                      // Replace the Image component section with this safer version
+{stud.images && stud.images.length > 0 && !imageFailed ? (
+  <Image
+    src={stud.images[currentIndex]}
+    alt={stud.name}
+    fill
+    className="object-cover transition-transform duration-700 group-hover:scale-110"
+    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+    priority={currentIndex === 0}
+    onError={() => {
+      // Safe check before calling handleImageError
+      if (stud.images && stud.images[currentIndex]) {
+        handleImageError(stud.id, stud.images[currentIndex]);
+      }
+    }}
+  />
+) : (
+  <div className="w-full h-full flex items-center justify-center text-6xl bg-blue-50">
+    👑
+  </div>
+)}
                     </div>
 
                     {/* Price/Stud Fee Badge */}

@@ -161,17 +161,23 @@ export default function ConsultTrainPage() {
           </div>
         </div>
 
-        {/* Trainer Bio */}
+        {/* Trainer Bio - UPDATED WITH IMAGE */}
         <div className="bg-white rounded-2xl shadow-lg overflow-hidden mb-12">
           <div className="grid md:grid-cols-3">
             <div className="md:col-span-1 bg-gradient-to-br from-blue-600 to-blue-800 p-8 flex items-center justify-center">
-              <div className="w-40 h-40 bg-white/20 rounded-full flex items-center justify-center border-4 border-white/50">
-                <span className="text-7xl">👨‍🏫</span>
+              <div className="w-40 h-40 rounded-full overflow-hidden border-4 border-white/50 shadow-xl">
+                <Image
+                  src="/obinna nwosu.jpeg"
+                  alt="Mr. Ezenwa Christian - Dog Trainer"
+                  width={160}
+                  height={160}
+                  className="w-full h-full object-cover"
+                />
               </div>
             </div>
             <div className="md:col-span-2 p-8">
               <h2 className="text-2xl font-bold mb-2">Meet Your Trainer</h2>
-              <h3 className="text-xl font-bold text-blue-600 mb-3">Mr.  OBINNA ANTHONY NWOSU</h3>
+              <h3 className="text-xl font-bold text-blue-600 mb-3">Mr. Ezenwa Christian</h3>
               <p className="text-yellow-600 font-medium mb-4">Certified Dog Trainer • 10+ years experience</p>
               <p className="text-gray-600 mb-4">
                 Specializing in Boerboels and large breed training with a proven track record of transforming 

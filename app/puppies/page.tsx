@@ -155,21 +155,27 @@ export default function PuppiesPage() {
                   <div className="relative h-64 bg-gray-100">
                     {/* Main Image with Zoom on Hover */}
                     <div className="relative w-full h-full overflow-hidden">
-                      {puppy.images && puppy.images.length > 0 && !imageFailed ? (
-                        <Image
-                          src={puppy.images[currentIndex]}
-                          alt={puppy.name}
-                          fill
-                          className="object-cover transition-transform duration-700 group-hover:scale-110"
-                          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                          priority={currentIndex === 0}
-                          onError={() => handleImageError(puppy.id, puppy.images[currentIndex])}
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-6xl bg-yellow-50">
-                          🐕
-                        </div>
-                      )}
+                      // Replace the Image component section with this safer version
+{puppy.images && puppy.images.length > 0 && !imageFailed ? (
+  <Image
+    src={puppy.images[currentIndex]}
+    alt={puppy.name}
+    fill
+    className="object-cover transition-transform duration-700 group-hover:scale-110"
+    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+    priority={currentIndex === 0}
+    onError={() => {
+      // Safe check before calling handleImageError
+      if (puppy.images && puppy.images[currentIndex]) {
+        handleImageError(puppy.id, puppy.images[currentIndex]);
+      }
+    }}
+  />
+) : (
+  <div className="w-full h-full flex items-center justify-center text-6xl bg-yellow-50">
+    🐕
+  </div>
+)}
                     </div>
 
                     {/* Price Badge */}
