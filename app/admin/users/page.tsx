@@ -1,7 +1,7 @@
 // app/admin/users/page.tsx
 "use client";
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseAdmin } from '@/lib/supabase';  // ← UPDATED import
 import Link from 'next/link';
 
 // Define types
@@ -64,8 +64,8 @@ export default function AdminUsersPage() {
     setLoading(true);
 
     try {
-      // Create user in Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+      // Use supabaseAdmin for user creation (bypasses RLS)
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email: formData.email,
         password: formData.password,
         email_confirm: true
@@ -73,7 +73,7 @@ export default function AdminUsersPage() {
 
       if (authError) throw authError;
 
-      // Add to admin_roles table
+      // Add to admin_roles table (using regular supabase is fine here)
       const { error: roleError } = await supabase
         .from('admin_roles')
         .insert([{
@@ -87,8 +87,25 @@ export default function AdminUsersPage() {
 
       alert('User created successfully!');
       setShowAddModal(false);
+      
+      // Reset form
+      setFormData({
+        email: '',
+        password: '',
+        role: 'viewer',
+        permissions: {
+          dogs: false,
+          products: false,
+          sales: false,
+          expenses: false,
+          users: false,
+          reports: true
+        }
+      });
+      
       fetchUsers();
     } catch (error: any) {
+      console.error('Error creating user:', error);
       alert('Error creating user: ' + error.message);
     } finally {
       setLoading(false);
@@ -136,7 +153,12 @@ export default function AdminUsersPage() {
       alert('Error deleting user: ' + roleError.message);
     } else {
       // Optionally delete from auth.users (requires admin API)
-      alert('User removed from admin access');
+      try {
+        await supabaseAdmin.auth.admin.deleteUser(user.user_id);
+        alert('User completely removed from system');
+      } catch (authError) {
+        console.log('User removed from admin access only');
+      }
       fetchUsers();
     }
     setLoading(false);
