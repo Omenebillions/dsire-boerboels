@@ -21,10 +21,13 @@ interface Puppy {
   created_at?: string;
 }
 
+const WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "2347019996837";
+
 export default function PuppiesPage() {
   const [puppies, setPuppies] = useState<Puppy[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeImageIndex, setActiveImageIndex] = useState<{ [key: number]: number }>({});
+  const [failedImages, setFailedImages] = useState<{ [key: string]: boolean }>({});
 
   useEffect(() => {
     fetchAvailablePuppies();
@@ -83,9 +86,16 @@ export default function PuppiesPage() {
     }));
   };
 
+  const handleImageError = (puppyId: number, imageUrl: string) => {
+    setFailedImages(prev => ({
+      ...prev,
+      [`${puppyId}-${imageUrl}`]: true
+    }));
+  };
+
   const handleReserve = (puppyId: number, puppyName: string) => {
-    const message = `I'm interested in reserving ${puppyName} (ID: ${puppyId}). Please provide more information.`;
-    window.open(`https://wa.me/2347019996837?text=${encodeURIComponent(message)}`, '_blank');
+    const message = `I'm interested in reserving ${puppyName} (ID: ${puppyId}) with a deposit of ₦100,000. Please provide more information.`;
+    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`, '_blank');
   };
 
   if (loading) {
@@ -123,7 +133,7 @@ export default function PuppiesPage() {
             <p className="text-gray-500 text-lg">No puppies available at the moment.</p>
             <p className="text-gray-400 mt-2">Check back soon or contact us for upcoming litters.</p>
             <a
-              href="https://wa.me/2347019996837"
+              href={`https://wa.me/${WHATSAPP_NUMBER}`}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-block mt-6 bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition"
@@ -136,6 +146,8 @@ export default function PuppiesPage() {
             {puppies.map((puppy: Puppy) => {
               const currentIndex = activeImageIndex[puppy.id] || 0;
               const hasMultipleImages = puppy.images && puppy.images.length > 1;
+              const currentImage = puppy.images?.[currentIndex];
+              const imageFailed = currentImage ? failedImages[`${puppy.id}-${currentImage}`] : false;
 
               return (
                 <div key={puppy.id} className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-2xl transition group">
@@ -143,13 +155,15 @@ export default function PuppiesPage() {
                   <div className="relative h-64 bg-gray-100">
                     {/* Main Image with Zoom on Hover */}
                     <div className="relative w-full h-full overflow-hidden">
-                      {puppy.images && puppy.images.length > 0 ? (
+                      {puppy.images && puppy.images.length > 0 && !imageFailed ? (
                         <Image
                           src={puppy.images[currentIndex]}
                           alt={puppy.name}
                           fill
                           className="object-cover transition-transform duration-700 group-hover:scale-110"
                           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                          priority={currentIndex === 0}
+                          onError={() => handleImageError(puppy.id, puppy.images[currentIndex])}
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-6xl bg-yellow-50">
@@ -158,20 +172,25 @@ export default function PuppiesPage() {
                       )}
                     </div>
 
+                    {/* Price Badge */}
+                    <div className="absolute top-4 left-4 bg-black/70 text-white px-3 py-1 rounded-full text-sm font-semibold z-10">
+                      ₦{puppy.price?.toLocaleString() || 'Contact'}
+                    </div>
+
                     {/* Status Badge */}
                     <span className="absolute top-4 right-4 bg-green-500 text-white px-3 py-1 rounded-full text-sm font-semibold z-10">
                       Available
                     </span>
 
                     {/* Image Counter */}
-                    {hasMultipleImages && (
+                    {hasMultipleImages && !imageFailed && (
                       <div className="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded z-10">
                         {currentIndex + 1} / {puppy.images?.length}
                       </div>
                     )}
 
                     {/* Navigation Arrows */}
-                    {hasMultipleImages && (
+                    {hasMultipleImages && !imageFailed && (
                       <>
                         <button
                           onClick={(e) => handlePrevImage(puppy.id, puppy.images!.length, e)}
@@ -191,7 +210,7 @@ export default function PuppiesPage() {
                     )}
 
                     {/* Thumbnail Dots */}
-                    {hasMultipleImages && (
+                    {hasMultipleImages && !imageFailed && (
                       <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5 z-10">
                         {puppy.images?.map((_, idx) => (
                           <button
@@ -211,32 +230,30 @@ export default function PuppiesPage() {
 
                   {/* Content */}
                   <div className="p-6">
-                    <h2 className="text-2xl font-bold mb-2">{puppy.name || 'Puppy'}</h2>
+                    <div className="flex justify-between items-start mb-3">
+                      <h2 className="text-2xl font-bold">{puppy.name || 'Puppy'}</h2>
+                      {puppy.color && (
+                        <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                          {puppy.color}
+                        </span>
+                      )}
+                    </div>
                     
-                    <div className="space-y-2 text-gray-600 mb-4">
+                    <div className="flex flex-wrap gap-3 text-sm text-gray-600 mb-4">
                       {puppy.age && (
-                        <p className="flex items-center gap-2">
-                          <span className="text-lg">🎂</span>
-                          <span>{puppy.age}</span>
-                        </p>
+                        <span className="flex items-center gap-1">
+                          <span>🎂</span> {puppy.age}
+                        </span>
                       )}
                       {puppy.gender && (
-                        <p className="flex items-center gap-2">
-                          <span className="text-lg">⚥</span>
-                          <span>{puppy.gender}</span>
-                        </p>
-                      )}
-                      {puppy.color && (
-                        <p className="flex items-center gap-2">
-                          <span className="text-lg">🎨</span>
-                          <span>{puppy.color}</span>
-                        </p>
+                        <span className="flex items-center gap-1">
+                          <span>⚥</span> {puppy.gender}
+                        </span>
                       )}
                       {puppy.parents && (
-                        <p className="flex items-center gap-2">
-                          <span className="text-lg">👪</span>
-                          <span>{puppy.parents}</span>
-                        </p>
+                        <span className="flex items-center gap-1">
+                          <span>👪</span> {puppy.parents}
+                        </span>
                       )}
                     </div>
 
@@ -246,27 +263,17 @@ export default function PuppiesPage() {
                       </p>
                     )}
 
-                    {/* Price and Actions */}
-                    <div className="flex items-center justify-between mb-4">
-                      {puppy.price ? (
-                        <p className="text-2xl font-bold text-green-600">
-                          ₦{puppy.price.toLocaleString()}
-                        </p>
-                      ) : (
-                        <p className="text-gray-400">Contact for price</p>
-                      )}
-                    </div>
-
-                    <div className="flex gap-2">
+                    {/* Action Buttons */}
+                    <div className="flex gap-2 mt-4">
                       <button
                         onClick={() => handleReserve(puppy.id, puppy.name || 'Puppy')}
-                        className="flex-1 bg-black text-white py-3 rounded-lg hover:bg-gray-800 transition"
+                        className="flex-1 bg-black text-white py-3 rounded-lg hover:bg-gray-800 transition font-medium"
                       >
                         Reserve with ₦100,000
                       </button>
                       <Link
                         href={`/puppies/${puppy.id}`}
-                        className="flex-1 text-center border border-black text-black py-3 rounded-lg hover:bg-black hover:text-white transition"
+                        className="flex-1 text-center border border-black text-black py-3 rounded-lg hover:bg-black hover:text-white transition font-medium"
                       >
                         View Details
                       </Link>

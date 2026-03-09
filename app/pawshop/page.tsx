@@ -21,6 +21,8 @@ interface Product {
   created_at?: string;
 }
 
+const WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "2347019996837";
+
 export default function PawshopPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<string[]>(['all']);
@@ -188,6 +190,22 @@ export default function PawshopPage() {
               {filteredProducts.map((product) => (
                 <ProductCard key={product.id} product={product} />
               ))}
+            </div>
+
+            {/* WhatsApp Contact Banner */}
+            <div className="mt-12 bg-green-50 border border-green-200 rounded-xl p-6 text-center">
+              <h3 className="font-bold text-lg mb-2">Need help choosing?</h3>
+              <p className="text-gray-600 mb-4">
+                Chat with us on WhatsApp for personalized recommendations.
+              </p>
+              <a
+                href={`https://wa.me/${WHATSAPP_NUMBER}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 bg-green-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-green-700 transition shadow-md"
+              >
+                <span>💬</span> Chat on WhatsApp
+              </a>
             </div>
           </>
         )}

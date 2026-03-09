@@ -3,13 +3,16 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import Link from 'next/link';
+import Image from 'next/image';
 
 export default function NewDogPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [type, setType] = useState('puppy');
   
-  // Common fields
+  // Form data
   const [formData, setFormData] = useState({
     name: '',
     price: '',
@@ -19,28 +22,98 @@ export default function NewDogPage() {
     weight: '',
     height: '',
     description: '',
-    images: [''],
+    images: [] as string[],
     pedigree: '',
     parents: '',
-    // Female specific
     next_heat: '',
     last_heat: '',
     litter_count: '0',
-    // Stud specific
-    available_for_breeding: true
   });
+
+  // Multiple image upload state
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    
+    // Create previews for all selected files
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreviews(prev => [...prev, reader.result as string]);
+      };
+      reader.readAsDataURL(file);
+    });
+    
+    setImageFiles(prev => [...prev, ...files]);
+  };
+
+  const removeImage = (index: number) => {
+    setImageFiles(prev => prev.filter((_, i) => i !== index));
+    setImagePreviews(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const uploadImages = async (files: File[]): Promise<string[]> => {
+    setUploading(true);
+    const uploadedUrls: string[] = [];
+    
+    try {
+      for (const file of files) {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const filePath = `dogs/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('dog-images')
+          .upload(filePath, file);
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('dog-images')
+          .getPublicUrl(filePath);
+
+        uploadedUrls.push(publicUrl);
+      }
+    } catch (error) {
+      console.error('Error uploading images:', error);
+      alert('Failed to upload some images');
+    } finally {
+      setUploading(false);
+    }
+    
+    return uploadedUrls;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
+    let allImages = [...formData.images];
+    
+    // Upload all new images
+    if (imageFiles.length > 0) {
+      const uploadedUrls = await uploadImages(imageFiles);
+      allImages = [...uploadedUrls, ...allImages];
+    }
+
     const dogData = {
-      ...formData,
+      name: formData.name,
       type: type,
+      status: formData.status,
       price: formData.price ? Number(formData.price) : null,
+      age: formData.age || null,
+      color: formData.color || null,
+      weight: formData.weight || null,
+      height: formData.height || null,
+      description: formData.description || null,
+      images: allImages,
+      pedigree: formData.pedigree || null,
+      parents: formData.parents || null,
+      next_heat: formData.next_heat || null,
+      last_heat: formData.last_heat || null,
       litter_count: formData.litter_count ? Number(formData.litter_count) : 0,
-      images: formData.images.filter(img => img.trim() !== ''),
-      created_at: new Date().toISOString()
     };
 
     const { error } = await supabase.from('dogs').insert([dogData]);
@@ -62,26 +135,87 @@ export default function NewDogPage() {
         {/* Type Selector */}
         <div className="flex gap-4 mb-6">
           {[
-            { value: 'puppy', label: '🐕 Puppy', icon: '🐕' },
-            { value: 'stud', label: '👑 Stud', icon: '👑' },
-            { value: 'female', label: '🐩 Female', icon: '🐩' }
+            { value: 'puppy', label: '🐕 Puppy' },
+            { value: 'stud', label: '👑 Stud' },
+            { value: 'female', label: '🐩 Female' }
           ].map((option) => (
             <button
               key={option.value}
               onClick={() => setType(option.value)}
-              className={`flex-1 py-3 rounded-lg font-bold flex items-center justify-center gap-2 ${
+              className={`flex-1 py-3 rounded-lg font-bold ${
                 type === option.value 
                   ? 'bg-black text-white' 
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
             >
-              <span>{option.icon}</span> {option.label}
+              {option.label}
             </button>
           ))}
         </div>
 
         <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow space-y-4">
-          {/* Basic Info - All Types */}
+          {/* Multiple Image Upload Section */}
+          <div className="space-y-4">
+            <h2 className="text-lg font-semibold border-b pb-2">📸 Photos (Select Multiple)</h2>
+            
+            <div>
+              <label className="block font-medium mb-1">Upload Images</label>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleImageChange}
+                className="w-full p-2 border rounded"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                You can select multiple images (Ctrl+Click or Cmd+Click)
+              </p>
+            </div>
+
+            {/* Image Previews */}
+            {imagePreviews.length > 0 && (
+              <div>
+                <p className="text-sm font-medium mb-2">New Images Preview:</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {imagePreviews.map((preview, idx) => (
+                    <div key={idx} className="relative group">
+                      <div className="relative w-24 h-24 border rounded overflow-hidden">
+                        <Image
+                          src={preview}
+                          alt={`Preview ${idx + 1}`}
+                          fill
+                          className="object-cover"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeImage(idx)}
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Existing Images */}
+            {formData.images.length > 0 && (
+              <div>
+                <p className="text-sm font-medium mb-2">Existing Images:</p>
+                <div className="flex gap-2 flex-wrap">
+                  {formData.images.map((img, idx) => (
+                    <div key={idx} className="relative w-16 h-16 border rounded overflow-hidden">
+                      <Image src={img} alt={`Dog ${idx}`} fill className="object-cover" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Rest of the form fields */}
           <div className="grid md:grid-cols-2 gap-4">
             <div>
               <label className="block font-medium mb-1">Name *</label>
@@ -109,24 +243,17 @@ export default function NewDogPage() {
             </div>
           </div>
 
-          {/* Price - Not for females usually */}
-          {type !== 'female' && (
+          <div className="grid md:grid-cols-2 gap-4">
             <div>
-              <label className="block font-medium mb-1">
-                {type === 'stud' ? 'Stud Fee (₦)' : 'Price (₦)'}
-              </label>
+              <label className="block font-medium mb-1">Price (₦)</label>
               <input
                 type="number"
                 value={formData.price}
                 onChange={(e) => setFormData({...formData, price: e.target.value})}
                 className="w-full p-2 border rounded"
-                placeholder={type === 'stud' ? 'e.g., 300000' : 'e.g., 1500000'}
+                placeholder={type === 'stud' ? 'Stud fee' : 'Price'}
               />
             </div>
-          )}
-
-          {/* Physical Attributes */}
-          <div className="grid md:grid-cols-3 gap-4">
             <div>
               <label className="block font-medium mb-1">Age</label>
               <input
@@ -137,6 +264,9 @@ export default function NewDogPage() {
                 placeholder={type === 'puppy' ? '8 weeks' : '2 years'}
               />
             </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-4">
             <div>
               <label className="block font-medium mb-1">Color</label>
               <input
@@ -173,7 +303,7 @@ export default function NewDogPage() {
             )}
           </div>
 
-          {/* Female Specific Fields */}
+          {/* Female specific fields */}
           {type === 'female' && (
             <div className="grid md:grid-cols-3 gap-4 p-4 bg-pink-50 rounded-lg">
               <div>
@@ -206,7 +336,7 @@ export default function NewDogPage() {
             </div>
           )}
 
-          {/* Pedigree & Parents */}
+          {/* Parents & Pedigree */}
           <div className="grid md:grid-cols-2 gap-4">
             <div>
               <label className="block font-medium mb-1">Parents</label>
@@ -225,7 +355,7 @@ export default function NewDogPage() {
                 value={formData.pedigree}
                 onChange={(e) => setFormData({...formData, pedigree: e.target.value})}
                 className="w-full p-2 border rounded"
-                placeholder="e.g., Champion bloodline"
+                placeholder="Champion bloodline"
               />
             </div>
           </div>
@@ -242,28 +372,12 @@ export default function NewDogPage() {
             />
           </div>
 
-          {/* Image URL */}
-          <div>
-            <label className="block font-medium mb-1">Image URL</label>
-            <input
-              type="text"
-              value={formData.images[0]}
-              onChange={(e) => setFormData({...formData, images: [e.target.value]})}
-              className="w-full p-2 border rounded"
-              placeholder="/dogs/dog-name.jpg"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Place image in /public/dogs/ folder first
-            </p>
-          </div>
-
-          {/* Submit Button */}
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || uploading}
             className="w-full bg-black text-white py-3 rounded-lg hover:bg-gray-800 disabled:opacity-50"
           >
-            {loading ? 'Adding...' : `Add ${type.charAt(0).toUpperCase() + type.slice(1)}`}
+            {loading ? 'Adding...' : uploading ? `Uploading ${imageFiles.length} images...` : 'Add Dog'}
           </button>
         </form>
       </div>
