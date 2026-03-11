@@ -153,32 +153,48 @@ export default function CheckoutPage() {
   };
 
   const handlePaymentProof = () => {
-    // Create order summary for WhatsApp
-    const items = cart.map(item => 
-      `${item.name} (x${item.quantity}) - ₦${(item.price * item.quantity).toLocaleString()}`
+    // Format items list nicely
+    const itemsList = cart.map(item => 
+      `• ${item.name} x${item.quantity} - ₦${(item.price * item.quantity).toLocaleString()}`
     ).join('%0A');
     
-    const message = `Hello! I've made payment for my order:%0A%0A` +
-      `📋 *Order Reference:* ${orderReference}%0A%0A` +
-      `🛍️ *Items:*%0A${items}%0A%0A` +
-      `💰 *Total Amount:* ₦${total.toLocaleString()}%0A` +
-      `📦 *Delivery:* ${formData.deliveryMethod}%0A` +
-      `👤 *Name:* ${formData.firstName} ${formData.lastName}%0A` +
-      `📞 *Phone:* ${formData.phone}%0A%0A` +
-      `💳 *Payment Details:*%0A` +
-      `- Bank: ${BANK_DETAILS.bankName}%0A` +
-      `- Account: ${BANK_DETAILS.accountNumber}%0A` +
-      `- Name: ${BANK_DETAILS.accountName}%0A%0A` +
-      `📎 *Attaching proof of payment.* Please confirm.`;
+    // Format delivery address
+    const deliveryInfo = formData.deliveryMethod === 'delivery' 
+      ? `${formData.address}, ${formData.city}, ${formData.state}`
+      : 'Pickup from Kennel (Lagos)';
+    
+    // Create a beautifully formatted WhatsApp message with ALL details
+    const message = `🔔 *NEW ORDER RECEIVED!* 🔔%0A%0A` +
+      `━━━━━━━━━━━━━━━━━━━━━%0A` +
+      `📋 *ORDER REFERENCE:*%0A${orderReference}%0A%0A` +
+      `━━━━━━━━━━━━━━━━━━━━━%0A` +
+      `🛍️ *ITEMS PURCHASED:*%0A${itemsList}%0A%0A` +
+      `💰 *TOTAL AMOUNT:*%0A₦${total.toLocaleString()}%0A%0A` +
+      `━━━━━━━━━━━━━━━━━━━━━%0A` +
+      `👤 *CUSTOMER DETAILS:*%0A` +
+      `Name: ${formData.firstName} ${formData.lastName}%0A` +
+      `Phone: ${formData.phone}%0A` +
+      `Email: ${formData.email}%0A%0A` +
+      `━━━━━━━━━━━━━━━━━━━━━%0A` +
+      `🚚 *DELIVERY INFORMATION:*%0A` +
+      `Method: ${formData.deliveryMethod === 'delivery' ? 'Door Delivery' : 'Pickup'}%0A` +
+      `Address: ${deliveryInfo}%0A%0A` +
+      `📝 *NOTES:*%0A${formData.notes || 'No special instructions'}%0A%0A` +
+      `━━━━━━━━━━━━━━━━━━━━━%0A` +
+      `💳 *PAYMENT DETAILS:*%0A` +
+      `Bank: ${BANK_DETAILS.bankName}%0A` +
+      `Account Number: ${BANK_DETAILS.accountNumber}%0A` +
+      `Account Name: ${BANK_DETAILS.accountName}%0A` +
+      `Amount to Pay: ₦${total.toLocaleString()}%0A%0A` +
+      `━━━━━━━━━━━━━━━━━━━━━%0A` +
+      `✅ *ACTION REQUIRED:*%0A` +
+      `Customer has placed this order and will attach payment proof. Please verify and confirm.`;
     
     window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${message}`, '_blank');
     
     // Clear cart after redirect
     localStorage.removeItem('cart');
     window.dispatchEvent(new Event('cartUpdated'));
-    
-    // Redirect to confirmation
-    router.push('/pawshop/confirmation');
   };
 
   if (loading) {
@@ -439,7 +455,7 @@ export default function CheckoutPage() {
                 )}
               </div>
 
-              {/* Payment Info - Simplified */}
+              {/* Payment Info */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                 <h2 className="text-xl font-bold mb-4">Payment Method</h2>
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
