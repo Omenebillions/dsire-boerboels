@@ -30,7 +30,7 @@ export default function PuppyReservePage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [reservationComplete, setReservationComplete] = useState(false);
-  const [reservationReference, setReservationReference] = useState('');
+  const [reservationReference] = useState(`RES-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`);
 
   const [formData, setFormData] = useState({
     firstName: '',
@@ -42,7 +42,6 @@ export default function PuppyReservePage() {
 
   useEffect(() => {
     fetchPuppy();
-    setReservationReference(`RES-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`);
   }, []);
 
   const fetchPuppy = async () => {
@@ -61,40 +60,15 @@ export default function PuppyReservePage() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const createReservation = async () => {
-    setSubmitting(true);
-
-    const reservationData = {
-      reservation_reference: reservationReference,
-      puppy_id: puppy?.id,
-      puppy_name: puppy?.name,
-      customer_name: `${formData.firstName} ${formData.lastName}`,
-      customer_email: formData.email,
-      customer_phone: formData.phone,
-      deposit_amount: 100000,
-      total_price: puppy?.price || 0,
-      status: 'pending',
-      notes: formData.notes
-    };
-
-    // Save to reservations table
-    const { error } = await supabase.from('reservations').insert([reservationData]);
-
-    if (error) {
-      console.error('Error creating reservation:', error);
-      alert('Error: ' + error.message);
-      setSubmitting(false);
-      return false;
-    }
-
-    setSubmitting(false);
-    setReservationComplete(true);
-    return true;
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await createReservation();
+    setSubmitting(true);
+    
+    // Simulate a short delay
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    setSubmitting(false);
+    setReservationComplete(true);
   };
 
   const handlePaymentProof = () => {
@@ -117,10 +91,10 @@ export default function PuppyReservePage() {
       `Account: ${BANK_DETAILS.accountNumber}%0A` +
       `Name: ${BANK_DETAILS.accountName}%0A` +
       `Amount: ₦100,000%0A%0A` +
-      `📝 *NOTES:*%0A${formData.notes || 'No special instructions'}%0A%0A` +
       `━━━━━━━━━━━━━━━━━━━━━%0A` +
       `✅ *ACTION REQUIRED:*%0A` +
-      `Customer has paid deposit. Please verify and mark puppy as RESERVED.`;
+      `Customer has reserved ${puppy?.name}. Please verify payment and mark as RESERVED in admin panel.%0A` +
+      `👉 https://dsire-boerboels.vercel.app/admin/dogs`;
 
     window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${message}`, '_blank');
   };
@@ -345,7 +319,7 @@ export default function PuppyReservePage() {
                 disabled={submitting}
                 className="w-full bg-yellow-600 text-white py-4 rounded-xl font-bold hover:bg-yellow-700 transition disabled:opacity-50 text-lg mt-4"
               >
-                {submitting ? 'Processing...' : 'Create Reservation'}
+                {submitting ? 'Processing...' : 'Continue'}
               </button>
             </form>
           </div>
