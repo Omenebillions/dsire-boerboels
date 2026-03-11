@@ -52,7 +52,6 @@ export default function NewProductPage() {
     setImageFiles(prev => prev.filter((_, i) => i !== index));
     setImagePreviews(prev => prev.filter((_, i) => i !== index));
     
-    // Also remove compression stats for this file
     const fileToRemove = imageFiles[index];
     if (fileToRemove) {
       const newStats = { ...compressionStats };
@@ -63,19 +62,17 @@ export default function NewProductPage() {
 
   const compressImage = async (file: File): Promise<File> => {
     const options = {
-      maxSizeMB: 1, // Maximum size in MB
-      maxWidthOrHeight: 1920, // Max dimension
-      useWebWorker: true, // Use web worker for better performance
-      fileType: 'image/jpeg', // Convert to JPEG for better compression
-      initialQuality: 0.8, // Quality (0-1)
+      maxSizeMB: 1,
+      maxWidthOrHeight: 1920,
+      useWebWorker: true,
+      fileType: 'image/jpeg',
+      initialQuality: 0.8,
     };
 
     try {
-      // Log original size
       const originalSize = file.size / 1024 / 1024;
       
-      // Check if file is already small enough
-      if (file.size < 1024 * 1024) { // 1MB
+      if (file.size < 1024 * 1024) {
         setCompressionStats(prev => ({
           ...prev,
           [file.name]: `⏭️ Skipped (${originalSize.toFixed(2)}MB)`
@@ -108,29 +105,53 @@ export default function NewProductPage() {
     const uploadedUrls: string[] = [];
     
     try {
-      for (const file of files) {
-        // Compress the image first
-        const compressedFile = await compressImage(file);
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        console.log(`📤 Uploading file ${i + 1}/${files.length}:`, file.name);
         
-        const fileExt = compressedFile.name.split('.').pop();
-        const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+        // Compress the image first
+        console.log('Compressing...');
+        const compressedFile = await compressImage(file);
+        console.log('Compressed size:', (compressedFile.size / 1024 / 1024).toFixed(2), 'MB');
+        
+        // Sanitize filename - remove special characters and spaces
+        const fileExt = file.name.split('.').pop();
+        const baseName = file.name.split('.').slice(0, -1).join('.');
+        const sanitizedName = baseName
+          .replace(/[^a-zA-Z0-9]/g, '_') // Replace special chars with underscore
+          .replace(/\s+/g, '_') // Replace spaces with underscore
+          .substring(0, 50); // Limit length
+        
+        const fileName = `${Date.now()}-${sanitizedName}.${fileExt}`;
         const filePath = `products/${fileName}`;
+        
+        console.log('Uploading to path:', filePath);
 
-        const { error: uploadError } = await supabase.storage
+        const { error: uploadError, data } = await supabase.storage
           .from('product-images')
           .upload(filePath, compressedFile);
 
-        if (uploadError) throw uploadError;
+        if (uploadError) {
+          console.error('❌ Upload error details:', {
+            message: uploadError.message,
+            name: uploadError.name,
+            statusCode: uploadError.statusCode,
+            details: uploadError
+          });
+          throw uploadError;
+        }
 
+        console.log('✅ Upload successful, getting public URL');
         const { data: { publicUrl } } = supabase.storage
           .from('product-images')
           .getPublicUrl(filePath);
 
+        console.log('Public URL:', publicUrl);
         uploadedUrls.push(publicUrl);
       }
-    } catch (error) {
-      console.error('Error uploading images:', error);
-      alert('Failed to upload some images');
+    } catch (error: any) {
+      console.error('❌ Error uploading images:', error);
+      alert(`Upload failed: ${error.message || 'Unknown error'}`);
     } finally {
       setUploading(false);
     }

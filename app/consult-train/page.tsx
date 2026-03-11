@@ -71,6 +71,40 @@ export default function ConsultTrainPage() {
     }
   ];
 
+  // Certifications array
+  const certifications = [
+    {
+      title: "CERTIFIED DOG TRAINER",
+      institution: "DOG TRAINING COLLEGE UK",
+      icon: "🎓",
+      color: "bg-blue-100 text-blue-800"
+    },
+    {
+      title: "PUPPY TRAINING SPECIALIST",
+      institution: "UK",
+      icon: "🐕",
+      color: "bg-green-100 text-green-800"
+    },
+    {
+      title: "CANINE SCENTWORK SPECIALIST",
+      institution: "UK",
+      icon: "👃",
+      color: "bg-purple-100 text-purple-800"
+    },
+    {
+      title: "POSITIVE BEHAVIOR PRACTITIONER",
+      institution: "UK",
+      icon: "🧠",
+      color: "bg-yellow-100 text-yellow-800"
+    },
+    {
+      title: "PET PHOTOGRAPHER",
+      institution: "NIGERIA",
+      icon: "📸",
+      color: "bg-pink-100 text-pink-800"
+    }
+  ];
+
   const WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "2348177391928";
   const EMAIL = "dsire.boerboels@gmail.com";
 
@@ -85,6 +119,28 @@ export default function ConsultTrainPage() {
           <p className="text-gray-600 max-w-2xl mx-auto">
             Professional training programs designed specifically for Boerboels and large breeds
           </p>
+        </div>
+
+        {/* Certifications Section - NEW */}
+        <div className="mb-16">
+          <h2 className="text-3xl font-bold text-center mb-8">Professional Certifications</h2>
+          <p className="text-gray-600 text-center max-w-2xl mx-auto mb-10">
+            Our trainer holds internationally recognized certifications from the UK and Nigeria
+          </p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            {certifications.map((cert, index) => (
+              <div 
+                key={index} 
+                className="bg-white rounded-xl shadow-md p-6 text-center hover:shadow-lg transition group border border-gray-100"
+              >
+                <div className="text-4xl mb-3 group-hover:scale-110 transition">{cert.icon}</div>
+                <h3 className="font-bold text-sm mb-1">{cert.title}</h3>
+                <p className="text-xs text-gray-500">{cert.institution}</p>
+                <div className="mt-3 w-full h-1 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full opacity-0 group-hover:opacity-100 transition"></div>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Main Training Programs */}
@@ -161,14 +217,14 @@ export default function ConsultTrainPage() {
           </div>
         </div>
 
-        {/* Trainer Bio - UPDATED WITH IMAGE */}
+        {/* Trainer Bio with Certifications Badges */}
         <div className="bg-white rounded-2xl shadow-lg overflow-hidden mb-12">
           <div className="grid md:grid-cols-3">
             <div className="md:col-span-1 bg-gradient-to-br from-blue-600 to-blue-800 p-8 flex items-center justify-center">
               <div className="w-40 h-40 rounded-full overflow-hidden border-4 border-white/50 shadow-xl">
                 <Image
                   src="/obinna nwosu.jpeg"
-                  alt="Mr. Ezenwa Christian - Dog Trainer"
+                  alt="Mr. Obinna Anthony Nwosu - Dog Trainer"
                   width={160}
                   height={160}
                   className="w-full h-full object-cover"
@@ -177,8 +233,18 @@ export default function ConsultTrainPage() {
             </div>
             <div className="md:col-span-2 p-8">
               <h2 className="text-2xl font-bold mb-2">Meet Your Trainer</h2>
-              <h3 className="text-xl font-bold text-blue-600 mb-3">Mr. Ezenwa Christian</h3>
+              <h3 className="text-xl font-bold text-blue-600 mb-3">MR. OBINNA ANTHONY NWOSU</h3>
               <p className="text-yellow-600 font-medium mb-4">Certified Dog Trainer • 10+ years experience</p>
+              
+              {/* Mini Certifications Badges */}
+              <div className="flex flex-wrap gap-2 mb-4">
+                {certifications.map((cert, index) => (
+                  <span key={index} className={`${cert.color} text-xs px-3 py-1 rounded-full font-medium`}>
+                    {cert.icon} {cert.title}
+                  </span>
+                ))}
+              </div>
+              
               <p className="text-gray-600 mb-4">
                 Specializing in Boerboels and large breed training with a proven track record of transforming 
                 dogs into well-behaved companions. Using positive reinforcement techniques tailored to each 
@@ -217,7 +283,7 @@ export default function ConsultTrainPage() {
               rel="noopener noreferrer"
               className="bg-green-500 text-white px-8 py-3 rounded-full font-bold hover:bg-green-600 transition shadow-lg"
             >
-              📱 WhatsApp: +234 817 739 1928
+              📱 WhatsApp: 2347019996837
             </a>
             <a
               href={`mailto:${EMAIL}`}
