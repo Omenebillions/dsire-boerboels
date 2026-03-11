@@ -105,52 +105,34 @@ export default function NewProductPage() {
     const uploadedUrls: string[] = [];
     
     try {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        console.log(`📤 Uploading file ${i + 1}/${files.length}:`, file.name);
-        
-        // Compress the image first
-        console.log('Compressing...');
+      for (const file of files) {
         const compressedFile = await compressImage(file);
-        console.log('Compressed size:', (compressedFile.size / 1024 / 1024).toFixed(2), 'MB');
         
         // Sanitize filename - remove special characters and spaces
         const fileExt = file.name.split('.').pop();
         const baseName = file.name.split('.').slice(0, -1).join('.');
         const sanitizedName = baseName
-          .replace(/[^a-zA-Z0-9]/g, '_') // Replace special chars with underscore
-          .replace(/\s+/g, '_') // Replace spaces with underscore
-          .substring(0, 50); // Limit length
+          .replace(/[^a-zA-Z0-9]/g, '_')
+          .replace(/\s+/g, '_')
+          .substring(0, 50);
         
         const fileName = `${Date.now()}-${sanitizedName}.${fileExt}`;
         const filePath = `products/${fileName}`;
-        
-        console.log('Uploading to path:', filePath);
 
-        const { error: uploadError, data } = await supabase.storage
+        const { error: uploadError } = await supabase.storage
           .from('product-images')
           .upload(filePath, compressedFile);
 
-        if (uploadError) {
-          console.error('❌ Upload error details:', {
-            message: uploadError.message,
-            name: uploadError.name,
-            statusCode: uploadError.statusCode,
-            details: uploadError
-          });
-          throw uploadError;
-        }
+        if (uploadError) throw uploadError;
 
-        console.log('✅ Upload successful, getting public URL');
         const { data: { publicUrl } } = supabase.storage
           .from('product-images')
           .getPublicUrl(filePath);
 
-        console.log('Public URL:', publicUrl);
         uploadedUrls.push(publicUrl);
       }
     } catch (error: any) {
-      console.error('❌ Error uploading images:', error);
+      console.error('Error uploading images:', error);
       alert(`Upload failed: ${error.message || 'Unknown error'}`);
     } finally {
       setUploading(false);
@@ -208,7 +190,7 @@ export default function NewProductPage() {
         </div>
         
         <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow space-y-6">
-          {/* Image Upload Section */}
+          {/* Image Upload Section - Same as Dog Upload */}
           <div className="space-y-4">
             <h2 className="text-lg font-semibold border-b pb-2">📸 Product Photos</h2>
             <div>
@@ -273,7 +255,7 @@ export default function NewProductPage() {
                 value={formData.name} 
                 onChange={(e) => setFormData({...formData, name: e.target.value})} 
                 className="w-full p-2 border rounded" 
-                placeholder="e.g. Premium Dog Collar"
+                placeholder="e.g. Premium Dog Food"
               />
             </div>
             <div className="space-y-1">
