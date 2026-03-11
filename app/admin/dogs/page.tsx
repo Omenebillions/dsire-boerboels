@@ -58,12 +58,48 @@ export default function AdminDogsPage() {
   };
 
   const updateStatus = async (id: number, newStatus: string) => {
+    // First, get the current dog data
+    const { data: dog } = await supabase
+      .from('dogs')
+      .select('name, price, type')
+      .eq('id', id)
+      .single();
+
+    // Update the dog status
     const { error } = await supabase
       .from('dogs')
       .update({ status: newStatus })
       .eq('id', id);
     
     if (!error) {
+      // If marking as SOLD, create a sale record
+      if (newStatus === 'sold' && dog) {
+        await supabase.from('sales').insert([{
+          item_type: 'dog',
+          item_id: id,
+          item_name: dog.name,
+          price: dog.price || 0,
+          customer_name: 'Walk-in Customer',
+          payment_status: 'paid',
+          sale_date: new Date().toISOString().split('T')[0],
+          notes: `Sold via admin panel`
+        }]);
+      }
+      
+      // If marking as RESERVED, create a partial sale for deposit
+      if (newStatus === 'reserved' && dog) {
+        await supabase.from('sales').insert([{
+          item_type: 'dog',
+          item_id: id,
+          item_name: dog.name,
+          price: 100000, // Deposit amount
+          customer_name: 'Walk-in Customer',
+          payment_status: 'partial',
+          sale_date: new Date().toISOString().split('T')[0],
+          notes: `Deposit paid for ${dog.name}`
+        }]);
+      }
+      
       fetchDogs();
     }
   };

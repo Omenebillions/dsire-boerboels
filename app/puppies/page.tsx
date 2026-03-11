@@ -1,6 +1,7 @@
 // app/puppies/page.tsx
 "use client";
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -24,6 +25,7 @@ interface Puppy {
 const WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "2347019996837";
 
 export default function PuppiesPage() {
+  const router = useRouter();
   const [puppies, setPuppies] = useState<Puppy[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeImageIndex, setActiveImageIndex] = useState<{ [key: number]: number }>({});
@@ -93,9 +95,8 @@ export default function PuppiesPage() {
     }));
   };
 
-  const handleReserve = (puppyId: number, puppyName: string) => {
-    const message = `I'm interested in reserving ${puppyName} (ID: ${puppyId}) with a deposit of ₦100,000. Please provide more information.`;
-    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`, '_blank');
+  const handleReserve = (puppyId: number) => {
+    router.push(`/puppies/reserve/${puppyId}`);
   };
 
   if (loading) {
@@ -155,27 +156,25 @@ export default function PuppiesPage() {
                   <div className="relative h-64 bg-gray-100">
                     {/* Main Image with Zoom on Hover */}
                     <div className="relative w-full h-full overflow-hidden">
-                      // Replace the Image component section with this safer version
-{puppy.images && puppy.images.length > 0 && !imageFailed ? (
-  <Image
-    src={puppy.images[currentIndex]}
-    alt={puppy.name}
-    fill
-    className="object-cover transition-transform duration-700 group-hover:scale-110"
-    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-    priority={currentIndex === 0}
-    onError={() => {
-      // Safe check before calling handleImageError
-      if (puppy.images && puppy.images[currentIndex]) {
-        handleImageError(puppy.id, puppy.images[currentIndex]);
-      }
-    }}
-  />
-) : (
-  <div className="w-full h-full flex items-center justify-center text-6xl bg-yellow-50">
-    🐕
-  </div>
-)}
+                      {puppy.images && puppy.images.length > 0 && !imageFailed ? (
+                        <Image
+                          src={puppy.images[currentIndex]}
+                          alt={puppy.name}
+                          fill
+                          className="object-cover transition-transform duration-700 group-hover:scale-110"
+                          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                          priority={currentIndex === 0}
+                          onError={() => {
+                            if (puppy.images && puppy.images[currentIndex]) {
+                              handleImageError(puppy.id, puppy.images[currentIndex]);
+                            }
+                          }}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-6xl bg-yellow-50">
+                          🐕
+                        </div>
+                      )}
                     </div>
 
                     {/* Price Badge */}
@@ -272,7 +271,7 @@ export default function PuppiesPage() {
                     {/* Action Buttons */}
                     <div className="flex gap-2 mt-4">
                       <button
-                        onClick={() => handleReserve(puppy.id, puppy.name || 'Puppy')}
+                        onClick={() => handleReserve(puppy.id)}
                         className="flex-1 bg-black text-white py-3 rounded-lg hover:bg-gray-800 transition font-medium"
                       >
                         Reserve with ₦100,000
