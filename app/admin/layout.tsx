@@ -176,6 +176,16 @@ export default function AdminLayout({
       >
         👥 Users
       </Link>
+      <Link 
+  href="/admin/orders" 
+  className={`text-sm font-medium whitespace-nowrap ${
+    pathname.includes('/admin/orders') 
+      ? 'text-blue-600 border-b-2 border-blue-600' 
+      : 'text-gray-600 hover:text-gray-900'
+  }`}
+>
+  📦 Orders
+</Link>
     </div>
   </div>
 </nav>
