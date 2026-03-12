@@ -115,21 +115,26 @@ export default function DebtorsPage() {
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
           <div>
-            <h1 className="text-3xl font-bold">💰 Debts & Debtors</h1>
-            <p className="text-gray-500 text-sm mt-1">Track who owes you money</p>
+            <h1 className="text-3xl font-bold text-gray-900">💰 Debts & Debtors</h1>
+            <p className="text-gray-600 text-sm mt-1">Track who owes you money</p>
           </div>
-          <div className="flex gap-2">
+          
+          {/* BUTTONS - ONLY ONCE */}
+          <div className="flex gap-3">
             <Link
               href="/admin/debtors/new"
-              className="bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 flex items-center gap-2"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2.5 rounded-lg flex items-center gap-2 shadow-md transition-all transform hover:scale-105"
             >
-              <span>➕</span> New Debt
+              <span className="text-lg">➕</span>
+              <span>New Debt</span>
             </Link>
+            
             <Link
               href="/admin/debtors/customers/new"
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+              className="bg-blue-500 hover:bg-blue-600 text-white font-bold px-5 py-2.5 rounded-lg flex items-center gap-2 shadow-md transition-all transform hover:scale-105"
             >
-              <span>👤</span> New Customer
+              <span className="text-lg">👤</span>
+              <span>New Customer</span>
             </Link>
           </div>
         </div>
@@ -182,7 +187,7 @@ export default function DebtorsPage() {
                   onClick={() => setFilter(status)}
                   className={`px-4 py-2 rounded-lg capitalize ${
                     filter === status 
-                      ? 'bg-black text-white' 
+                      ? 'bg-blue-600 text-white' 
                       : 'bg-gray-100 hover:bg-gray-200'
                   }`}
                 >

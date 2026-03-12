@@ -171,18 +171,23 @@ export default function AdminDogsPage() {
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
           <div>
-            <h1 className="text-3xl font-bold">🐕 Dog Management</h1>
-            <p className="text-gray-500 text-sm mt-1">Manage all dogs, puppies, studs, and females</p>
+            <h1 className="text-3xl font-bold text-gray-900">🐕 Dog Management</h1>
+            <p className="text-gray-600 text-sm mt-1">Manage all dogs, puppies, studs, and females</p>
           </div>
+          
+          {/* FIXED BUTTON - HIGH VISIBILITY */}
           <div className="flex gap-2">
             <Link 
               href="/admin/dogs/new" 
-              className="bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 flex items-center gap-2"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2.5 rounded-lg flex items-center gap-2 shadow-md transition-all transform hover:scale-105"
             >
-              <span>➕</span> Add New Dog
+              <span className="text-lg">➕</span> 
+              <span>Add New Dog</span>
             </Link>
           </div>
         </div>
+        
+        {/* Rest of your component... */}
 
         {/* Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-7 gap-3 mb-6">

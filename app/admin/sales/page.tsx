@@ -159,7 +159,7 @@ export default function AdminSalesPage() {
     </div>
   );
 
-  return (
+ return (
     <div className="min-h-screen bg-slate-50 p-6">
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
@@ -167,10 +167,18 @@ export default function AdminSalesPage() {
             <h1 className="text-3xl font-black text-slate-900">SALES & ORDERS</h1>
             <p className="text-slate-500 font-medium">Unified ledger for Kennel and PawShop</p>
           </div>
-          <Link href="/admin/sales/new" className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold hover:bg-slate-800 transition-all shadow-lg shadow-slate-200">
-            + Record Manual Sale
+          
+          {/* FIXED BUTTON - Blue primary to match other pages */}
+          <Link 
+            href="/admin/sales/new" 
+            className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3 rounded-xl flex items-center gap-2 shadow-lg transition-all transform hover:scale-105"
+          >
+            <span className="text-lg">➕</span>
+            <span>Record Manual Sale</span>
           </Link>
         </div>
+        
+        {/* Rest of your sales page... */}
 
         {/* FILTERS */}
         <div className="flex flex-wrap gap-4 mb-8">

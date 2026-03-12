@@ -88,6 +88,18 @@ export default function AdminLayout({
               <span className="text-sm text-gray-600 hidden md:block">
                 {user?.email}
               </span>
+              
+              {/* ADD PASSWORD CHANGE LINK HERE */}
+              <Link
+                href="/admin/password"
+                className="text-sm text-blue-600 hover:text-blue-700 transition flex items-center gap-1"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                </svg>
+                <span className="hidden md:inline">Change Password</span>
+              </Link>
+
               <button
                 onClick={handleLogout}
                 className="text-sm text-red-600 hover:text-red-700 transition flex items-center gap-1"
@@ -95,100 +107,99 @@ export default function AdminLayout({
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                 </svg>
-                Logout
+                <span className="hidden md:inline">Logout</span>
               </button>
             </div>
           </div>
         </div>
       </header>
 
-<nav className="bg-white border-b">
-  <div className="max-w-7xl mx-auto px-4">
-    <div className="flex space-x-6 overflow-x-auto py-2">
-      <Link 
-        href="/admin/dogs" 
-        className={`text-sm font-medium whitespace-nowrap ${
-          pathname.includes('/admin/dogs') 
-            ? 'text-blue-600 border-b-2 border-blue-600' 
-            : 'text-gray-600 hover:text-gray-900'
-        }`}
-      >
-        🐕 Dogs
-      </Link>
-      <Link 
-        href="/admin/products" 
-        className={`text-sm font-medium whitespace-nowrap ${
-          pathname.includes('/admin/products') 
-            ? 'text-blue-600 border-b-2 border-blue-600' 
-            : 'text-gray-600 hover:text-gray-900'
-        }`}
-      >
-        🛍️ Products
-      </Link>
-      <Link 
-        href="/admin/sales" 
-        className={`text-sm font-medium whitespace-nowrap ${
-          pathname.includes('/admin/sales') 
-            ? 'text-blue-600 border-b-2 border-blue-600' 
-            : 'text-gray-600 hover:text-gray-900'
-        }`}
-      >
-        💰 Sales
-      </Link>
-      {/* NEW: Debtors Link */}
-      <Link 
-        href="/admin/debtors" 
-        className={`text-sm font-medium whitespace-nowrap ${
-          pathname.includes('/admin/debtors') 
-            ? 'text-blue-600 border-b-2 border-blue-600' 
-            : 'text-gray-600 hover:text-gray-900'
-        }`}
-      >
-        📋 Debtors
-      </Link>
-      <Link 
-        href="/admin/expenses" 
-        className={`text-sm font-medium whitespace-nowrap ${
-          pathname.includes('/admin/expenses') 
-            ? 'text-blue-600 border-b-2 border-blue-600' 
-            : 'text-gray-600 hover:text-gray-900'
-        }`}
-      >
-        📝 Expenses
-      </Link>
-      <Link 
-        href="/admin/reports" 
-        className={`text-sm font-medium whitespace-nowrap ${
-          pathname.includes('/admin/reports') 
-            ? 'text-blue-600 border-b-2 border-blue-600' 
-            : 'text-gray-600 hover:text-gray-900'
-        }`}
-      >
-        📊 Reports
-      </Link>
-      <Link 
-        href="/admin/users" 
-        className={`text-sm font-medium whitespace-nowrap ${
-          pathname.includes('/admin/users') 
-            ? 'text-blue-600 border-b-2 border-blue-600' 
-            : 'text-gray-600 hover:text-gray-900'
-        }`}
-      >
-        👥 Users
-      </Link>
-      <Link 
-  href="/admin/orders" 
-  className={`text-sm font-medium whitespace-nowrap ${
-    pathname.includes('/admin/orders') 
-      ? 'text-blue-600 border-b-2 border-blue-600' 
-      : 'text-gray-600 hover:text-gray-900'
-  }`}
->
-  📦 Orders
-</Link>
-    </div>
-  </div>
-</nav>
+      <nav className="bg-white border-b">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex space-x-6 overflow-x-auto py-2">
+            <Link 
+              href="/admin/dogs" 
+              className={`text-sm font-medium whitespace-nowrap ${
+                pathname.includes('/admin/dogs') 
+                  ? 'text-blue-600 border-b-2 border-blue-600' 
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              🐕 Dogs
+            </Link>
+            <Link 
+              href="/admin/products" 
+              className={`text-sm font-medium whitespace-nowrap ${
+                pathname.includes('/admin/products') 
+                  ? 'text-blue-600 border-b-2 border-blue-600' 
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              🛍️ Products
+            </Link>
+            <Link 
+              href="/admin/sales" 
+              className={`text-sm font-medium whitespace-nowrap ${
+                pathname.includes('/admin/sales') 
+                  ? 'text-blue-600 border-b-2 border-blue-600' 
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              💰 Sales
+            </Link>
+            <Link 
+              href="/admin/debtors" 
+              className={`text-sm font-medium whitespace-nowrap ${
+                pathname.includes('/admin/debtors') 
+                  ? 'text-blue-600 border-b-2 border-blue-600' 
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              📋 Debtors
+            </Link>
+            <Link 
+              href="/admin/expenses" 
+              className={`text-sm font-medium whitespace-nowrap ${
+                pathname.includes('/admin/expenses') 
+                  ? 'text-blue-600 border-b-2 border-blue-600' 
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              📝 Expenses
+            </Link>
+            <Link 
+              href="/admin/reports" 
+              className={`text-sm font-medium whitespace-nowrap ${
+                pathname.includes('/admin/reports') 
+                  ? 'text-blue-600 border-b-2 border-blue-600' 
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              📊 Reports
+            </Link>
+            <Link 
+              href="/admin/users" 
+              className={`text-sm font-medium whitespace-nowrap ${
+                pathname.includes('/admin/users') 
+                  ? 'text-blue-600 border-b-2 border-blue-600' 
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              👥 Users
+            </Link>
+            <Link 
+              href="/admin/orders" 
+              className={`text-sm font-medium whitespace-nowrap ${
+                pathname.includes('/admin/orders') 
+                  ? 'text-blue-600 border-b-2 border-blue-600' 
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              📦 Orders
+            </Link>
+          </div>
+        </div>
+      </nav>
 
       {/* Main Content */}
       <main className="py-6">

@@ -85,9 +85,13 @@ export default function AdminExpensesPage() {
             >
               Export CSV
             </button>
-            <Link href="/admin/expenses/new" className="flex-1 md:flex-none bg-slate-900 text-white px-8 py-3 rounded-xl font-bold text-xs hover:bg-slate-800 transition-all shadow-lg uppercase tracking-widest text-center">
-              + New Expense
-            </Link>
+          <Link 
+    href="/admin/expenses/new" 
+    className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-xs transition-all shadow-lg flex items-center gap-2 transform hover:scale-105 uppercase tracking-widest"
+  >
+    <span className="text-base">➕</span>
+    New Expense
+  </Link>
           </div>
         </header>
 

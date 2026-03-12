@@ -86,22 +86,27 @@ export default function AdminProductsPage() {
     </div>
   );
 
-  return (
+return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-3xl font-bold">🛍️ Products</h1>
-            <p className="text-gray-500">Manage your pawshop inventory</p>
+            <h1 className="text-3xl font-bold text-gray-900">🛍️ Products</h1>
+            <p className="text-gray-600">Manage your pawshop inventory</p>
           </div>
+          
+          {/* FIXED BUTTON - High visibility blue */}
           <Link
             href="/admin/products/new"
-            className="bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800"
+            className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2.5 rounded-lg flex items-center gap-2 shadow-md transition-all transform hover:scale-105"
           >
-            + Add Product
+            <span className="text-lg">➕</span> 
+            <span>Add Product</span>
           </Link>
         </div>
+        
+        {/* Rest of your products page... */}
 
         {/* Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
