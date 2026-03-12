@@ -1,7 +1,7 @@
 // app/admin/users/page.tsx
 "use client";
 import { useState, useEffect } from 'react';
-import { supabase, supabaseAdmin } from '@/lib/supabase';  // ← UPDATED import
+import { supabase } from '@/lib/supabase';  // Removed supabaseAdmin import
 import Link from 'next/link';
 
 // Define types
@@ -64,26 +64,25 @@ export default function AdminUsersPage() {
     setLoading(true);
 
     try {
-      // Use supabaseAdmin for user creation (bypasses RLS)
-      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-        email: formData.email,
-        password: formData.password,
-        email_confirm: true
-      });
-
-      if (authError) throw authError;
-
-      // Add to admin_roles table (using regular supabase is fine here)
-      const { error: roleError } = await supabase
-        .from('admin_roles')
-        .insert([{
-          user_id: authData.user.id,
+      // Call secure API route instead of using supabaseAdmin directly
+      const response = await fetch('/api/admin/users/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           email: formData.email,
+          password: formData.password,
           role: formData.role,
           permissions: formData.permissions
-        }]);
+        }),
+      });
 
-      if (roleError) throw roleError;
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error);
+      }
 
       alert('User created successfully!');
       setShowAddModal(false);
@@ -133,35 +132,38 @@ export default function AdminUsersPage() {
     setLoading(false);
   };
 
-  const handleDeleteUser = async (userId: number, email: string) => {
-    if (!confirm(`Are you sure you want to delete user: ${email}?`)) return;
+  const handleDeleteUser = async (userId: number, userRecord: AdminUser) => {
+    if (!confirm(`Are you sure you want to delete user: ${userRecord.email}?`)) return;
 
     setLoading(true);
 
-    // Get the user record first to get the auth user_id
-    const user = users.find(u => u.id === userId);
-    
-    if (!user) return;
+    try {
+      // Call secure API route for deletion
+      const response = await fetch('/api/admin/users/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: userRecord.user_id,
+          adminRoleId: userId
+        }),
+      });
 
-    // Delete from admin_roles first
-    const { error: roleError } = await supabase
-      .from('admin_roles')
-      .delete()
-      .eq('id', userId);
+      const data = await response.json();
 
-    if (roleError) {
-      alert('Error deleting user: ' + roleError.message);
-    } else {
-      // Optionally delete from auth.users (requires admin API)
-      try {
-        await supabaseAdmin.auth.admin.deleteUser(user.user_id);
-        alert('User completely removed from system');
-      } catch (authError) {
-        console.log('User removed from admin access only');
+      if (!response.ok) {
+        throw new Error(data.error);
       }
+
+      alert('User deleted successfully!');
       fetchUsers();
+    } catch (error: any) {
+      console.error('Error deleting user:', error);
+      alert('Error deleting user: ' + error.message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const getRoleBadgeColor = (role: string) => {
@@ -195,14 +197,14 @@ export default function AdminUsersPage() {
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-3xl font-bold">👥 User Management</h1>
-            <p className="text-gray-500 text-sm mt-1">Manage admin users and their permissions</p>
+            <h1 className="text-3xl font-bold text-gray-900">👥 User Management</h1>
+            <p className="text-gray-600 text-sm mt-1">Manage admin users and their permissions</p>
           </div>
           <button
             onClick={() => setShowAddModal(true)}
-            className="bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 flex items-center gap-2"
+            className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2.5 rounded-lg flex items-center gap-2 shadow-md transition-all transform hover:scale-105"
           >
-            <span>➕</span> Add New User
+            <span className="text-lg">➕</span> Add New User
           </button>
         </div>
 
@@ -213,7 +215,7 @@ export default function AdminUsersPage() {
             placeholder="Search users by email..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full p-2 border rounded"
+            className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500"
           />
         </div>
 
@@ -330,7 +332,7 @@ export default function AdminUsersPage() {
                               Edit
                             </button>
                             <button
-                              onClick={() => handleDeleteUser(user.id, user.email)}
+                              onClick={() => handleDeleteUser(user.id, user)}
                               className="text-red-600 hover:underline text-sm"
                             >
                               Delete
@@ -367,7 +369,7 @@ export default function AdminUsersPage() {
                   required
                   value={formData.email}
                   onChange={(e) => setFormData({...formData, email: e.target.value})}
-                  className="w-full p-2 border rounded"
+                  className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
@@ -378,7 +380,7 @@ export default function AdminUsersPage() {
                   required
                   value={formData.password}
                   onChange={(e) => setFormData({...formData, password: e.target.value})}
-                  className="w-full p-2 border rounded"
+                  className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500"
                 />
                 <p className="text-xs text-gray-500 mt-1">User will be asked to change on first login</p>
               </div>
@@ -388,7 +390,7 @@ export default function AdminUsersPage() {
                 <select
                   value={formData.role}
                   onChange={(e) => setFormData({...formData, role: e.target.value as any})}
-                  className="w-full p-2 border rounded"
+                  className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="viewer">Viewer (Read-only)</option>
                   <option value="manager">Manager (Limited edit)</option>
@@ -424,7 +426,7 @@ export default function AdminUsersPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 bg-black text-white py-2 rounded hover:bg-gray-800"
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded transition-all"
                 >
                   Create User
                 </button>

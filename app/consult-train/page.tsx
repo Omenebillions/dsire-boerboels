@@ -105,7 +105,7 @@ export default function ConsultTrainPage() {
     }
   ];
 
-  const WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "2348177391928";
+  const WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "2347019996837";
   const EMAIL = "dsire.boerboels@gmail.com";
 
   return (
@@ -121,7 +121,7 @@ export default function ConsultTrainPage() {
           </p>
         </div>
 
-        {/* Certifications Section - NEW */}
+        {/* Certifications Section */}
         <div className="mb-16">
           <h2 className="text-3xl font-bold text-center mb-8">Professional Certifications</h2>
           <p className="text-gray-600 text-center max-w-2xl mx-auto mb-10">
@@ -283,13 +283,13 @@ export default function ConsultTrainPage() {
               rel="noopener noreferrer"
               className="bg-green-500 text-white px-8 py-3 rounded-full font-bold hover:bg-green-600 transition shadow-lg"
             >
-              📱 WhatsApp: 2347019996837
+              📱 WhatsApp: {WHATSAPP_NUMBER}
             </a>
             <a
               href={`mailto:${EMAIL}`}
               className="bg-white text-blue-600 px-8 py-3 rounded-full font-bold hover:bg-gray-100 transition shadow-lg"
             >
-              ✉️ dsire.boerboels@gmail.com
+              ✉️ {EMAIL}
             </a>
           </div>
         </div>
