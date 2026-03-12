@@ -5,7 +5,7 @@ import Image from "next/image";
 import MobileMenu from "@/app/components/MobileMenu";
 
 export const metadata = {
-  title: "Dsire Boerboels",
+  title: "DSIRE KENNELS",
   description: "Premium Boerboel Kennel & Puppies For Sale",
 };
 
@@ -17,7 +17,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {/* Logo */}
           <Link href="/" className="flex items-center">
             <span className="text-xl md:text-2xl font-bold text-black">
-              DSIRE Boerboels
+              DSIRE KENNELS
             </span>
           </Link>
 
@@ -74,7 +74,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <footer className="p-4 md:p-6 text-center text-gray-500 border-t mt-10">
           <div className="flex flex-col items-center justify-center gap-3">
             <span className="text-lg font-bold text-gray-700">DSIRE KENNELS</span>
-            <p className="text-sm md:text-base">© {new Date().getFullYear()} Dsire Boerboels — All Rights Reserved</p>
+            <p className="text-sm md:text-base">© {new Date().getFullYear()} DSIRE KENNELS — All Rights Reserved</p>
           </div>
           <div className="mt-2 text-xs md:text-sm">
             <span>A tintville Design. </span>
