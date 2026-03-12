@@ -1,10 +1,9 @@
-// app/admin/sales/page.tsx
 "use client";
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 
-// Define the Sale interface
+// --- INTERFACES ---
 interface Sale {
   id: number;
   item_type: string;
@@ -23,29 +22,15 @@ interface Sale {
   notes?: string;
   sale_date: string;
   created_at: string;
-  source?: 'sales_table' | 'orders_table';
-}
-
-// Define Order interface
-interface Order {
-  id: number;
-  order_reference: string;
-  customer_name: string;
-  customer_email: string;
-  customer_phone: string;
-  total_amount: number;
-  payment_status: string;
-  payment_method: string;
-  items: any[];
-  created_at: string;
-  source: 'orders_table';
+  source: 'sales_table' | 'orders_table';
+  order_reference?: string;
 }
 
 export default function AdminSalesPage() {
-  const [sales, setSales] = useState<(Sale | Order)[]>([]);
+  const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState('month');
-  const [viewMode, setViewMode] = useState('combined'); // 'combined', 'sales', 'orders'
+  const [viewMode, setViewMode] = useState('combined'); 
 
   useEffect(() => {
     fetchAllSales();
@@ -54,7 +39,6 @@ export default function AdminSalesPage() {
   const fetchAllSales = async () => {
     setLoading(true);
     
-    // Date filtering
     const now = new Date();
     let startDate: Date | null = null;
     
@@ -70,262 +54,221 @@ export default function AdminSalesPage() {
     }
 
     try {
-      // Fetch from sales table
+      // 1. Fetch Products for Cost Lookups (To calculate accurate profit on online orders)
+      const { data: products } = await supabase.from('products').select('id, cost');
+
+      // 2. Fetch Manual Sales
       let salesQuery = supabase.from('sales').select('*');
-      if (startDate) {
+      if (startDate && period !== 'all') {
         salesQuery = salesQuery.gte('created_at', startDate.toISOString());
       }
       const { data: salesData } = await salesQuery.order('created_at', { ascending: false });
 
-      // Fetch from orders table
+      // 3. Fetch Online Orders
       let ordersQuery = supabase.from('orders').select('*');
-      if (startDate) {
+      if (startDate && period !== 'all') {
         ordersQuery = ordersQuery.gte('created_at', startDate.toISOString());
       }
       const { data: ordersData } = await ordersQuery.order('created_at', { ascending: false });
 
-      // Transform orders to match sale-like structure
-      const transformedOrders: Sale[] = (ordersData || []).map((order: any) => ({
-        id: order.id,
-        item_type: 'order',
-        item_id: order.id,
-        item_name: `Order #${order.order_reference}`,
-        customer_name: order.customer_name,
-        customer_email: order.customer_email,
-        customer_phone: order.customer_phone,
-        quantity: 1,
-        price: order.total_amount,
-        cost: 0,
-        profit: 0,
-        payment_method: order.payment_method,
-        payment_status: order.payment_status,
-        sale_date: new Date(order.created_at).toISOString().split('T')[0],
-        created_at: order.created_at,
-        notes: `${order.items?.length || 0} items`,
-        source: 'orders_table'
-      }));
+      // 4. Transform Orders into Sale format with profit calculation
+      const transformedOrders: Sale[] = (ordersData || []).map((order: any) => {
+        const orderTotal = Number(order.total_amount || 0);
+        
+        // Accurate cost calculation for the order
+        const totalOrderCost = (order.items || []).reduce((sum: number, item: any) => {
+          const product = products?.find(p => p.id === item.product_id);
+          const unitCost = product?.cost || (Number(item.price || 0) * 0.6); // 40% margin fallback
+          return sum + (unitCost * (Number(item.quantity) || 1));
+        }, 0);
 
-      // Combine both sources
+        return {
+          id: order.id,
+          item_type: 'order',
+          item_id: order.id,
+          item_name: `Order #${order.order_reference}`,
+          order_reference: order.order_reference,
+          customer_name: order.customer_name,
+          customer_email: order.customer_email,
+          customer_phone: order.customer_phone,
+          quantity: order.items?.length || 1,
+          price: orderTotal,
+          cost: totalOrderCost,
+          profit: orderTotal - totalOrderCost,
+          payment_method: order.payment_method,
+          payment_status: order.payment_status?.toLowerCase(),
+          sale_date: order.created_at,
+          created_at: order.created_at,
+          notes: `${order.items?.length || 0} items from PawShop`,
+          source: 'orders_table'
+        };
+      });
+
+      // 5. Combine and Sort
       const combined = [
-        ...(salesData || []).map(s => ({ ...s, source: 'sales_table' })),
+        ...(salesData || []).map(s => ({ 
+          ...s, 
+          source: 'sales_table' as const,
+          payment_status: s.payment_status?.toLowerCase() 
+        })),
         ...transformedOrders
       ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
       setSales(combined);
     } catch (error) {
-      console.error('Error fetching sales:', error);
+      console.error('Error fetching transactions:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  // Filter based on view mode
-  const filteredSales = viewMode === 'combined' 
-    ? sales 
-    : viewMode === 'sales' 
-      ? sales.filter(s => s.source === 'sales_table')
-      : sales.filter(s => s.source === 'orders_table');
+  const filteredSales = sales.filter(s => {
+    if (viewMode === 'combined') return true;
+    if (viewMode === 'sales') return s.source === 'sales_table';
+    if (viewMode === 'orders') return s.source === 'orders_table';
+    return true;
+  });
 
-  // Calculate totals
-  const totals = filteredSales.reduce((acc: any, sale: any) => ({
-    revenue: acc.revenue + (sale.price || sale.total_amount || 0),
-    profit: acc.profit + (sale.profit || 0),
-    count: acc.count + 1,
-    pendingCount: acc.pendingCount + (sale.payment_status === 'pending' ? 1 : 0)
-  }), { revenue: 0, profit: 0, count: 0, pendingCount: 0 });
+  const totals = filteredSales.reduce((acc, sale) => {
+    const isPaid = sale.payment_status === 'paid' || sale.payment_status === 'completed';
+    
+    // Revenue Logic: If not fully paid, only count the deposit
+    const realizedRev = (sale.source === 'sales_table' && !isPaid) 
+      ? Number(sale.deposit_amount || 0) 
+      : Number(sale.price || 0);
+
+    return {
+      revenue: acc.revenue + realizedRev,
+      profit: acc.profit + Number(sale.profit || 0),
+      count: acc.count + 1,
+      pendingCount: acc.pendingCount + (isPaid ? 0 : 1)
+    };
+  }, { revenue: 0, profit: 0, count: 0, pendingCount: 0 });
+
+  const getStatusStyle = (status: string) => {
+    const s = status?.toLowerCase();
+    if (s === 'paid' || s === 'completed') return 'bg-emerald-100 text-emerald-800';
+    if (s === 'pending') return 'bg-amber-100 text-amber-800';
+    if (s === 'reserved' || s === 'partial') return 'bg-blue-100 text-blue-800';
+    return 'bg-slate-100 text-slate-800';
+  };
 
   if (loading) return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-48 mb-6"></div>
-          <div className="flex gap-2 mb-6">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-10 bg-gray-200 rounded w-20"></div>
-            ))}
-          </div>
-          <div className="grid grid-cols-4 gap-4 mb-6">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-24 bg-gray-200 rounded"></div>
-            ))}
-          </div>
-          <div className="h-64 bg-gray-200 rounded"></div>
-        </div>
-      </div>
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <p className="font-black text-slate-400 animate-pulse tracking-widest">SYNCING TRANSACTIONS...</p>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-slate-50 p-6">
       <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold">💰 Sales & Orders</h1>
-          <div className="flex gap-2">
-            <Link href="/admin/sales/new" className="bg-black text-white px-4 py-2 rounded-lg">
-              + Record Sale
-            </Link>
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+          <div>
+            <h1 className="text-3xl font-black text-slate-900">SALES & ORDERS</h1>
+            <p className="text-slate-500 font-medium">Unified ledger for Kennel and PawShop</p>
+          </div>
+          <Link href="/admin/sales/new" className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold hover:bg-slate-800 transition-all shadow-lg shadow-slate-200">
+            + Record Manual Sale
+          </Link>
+        </div>
+
+        {/* FILTERS */}
+        <div className="flex flex-wrap gap-4 mb-8">
+          <div className="bg-white p-1 rounded-xl border border-slate-200 flex shadow-sm">
+            {['combined', 'sales', 'orders'].map(m => (
+              <button key={m} onClick={() => setViewMode(m)} className={`px-4 py-2 rounded-lg text-xs font-black transition-all ${viewMode === m ? 'bg-slate-900 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}>
+                {m.toUpperCase()}
+              </button>
+            ))}
+          </div>
+          <div className="bg-white p-1 rounded-xl border border-slate-200 flex shadow-sm">
+            {['week', 'month', 'year', 'all'].map(p => (
+              <button key={p} onClick={() => setPeriod(p)} className={`px-4 py-2 rounded-lg text-xs font-black transition-all ${period === p ? 'bg-slate-900 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}>
+                {p.toUpperCase()}
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* View Mode Tabs */}
-        <div className="flex gap-2 mb-4">
-          <button
-            onClick={() => setViewMode('combined')}
-            className={`px-4 py-2 rounded-lg font-medium ${
-              viewMode === 'combined' ? 'bg-black text-white' : 'bg-gray-200 text-gray-700'
-            }`}
-          >
-            All Transactions
-          </button>
-          <button
-            onClick={() => setViewMode('sales')}
-            className={`px-4 py-2 rounded-lg font-medium ${
-              viewMode === 'sales' ? 'bg-black text-white' : 'bg-gray-200 text-gray-700'
-            }`}
-          >
-            Manual Sales
-          </button>
-          <button
-            onClick={() => setViewMode('orders')}
-            className={`px-4 py-2 rounded-lg font-medium ${
-              viewMode === 'orders' ? 'bg-black text-white' : 'bg-gray-200 text-gray-700'
-            }`}
-          >
-            Online Orders
-          </button>
-        </div>
-
-        {/* Period Filter */}
-        <div className="flex gap-2 mb-6">
-          {['week', 'month', 'year', 'all'].map(p => (
-            <button
-              key={p}
-              onClick={() => setPeriod(p)}
-              className={`px-4 py-2 rounded-lg ${
-                period === p ? 'bg-black text-white' : 'bg-white border'
-              }`}
-            >
-              {p.charAt(0).toUpperCase() + p.slice(1)}
-            </button>
-          ))}
-        </div>
-
-        {/* Summary Cards */}
-        <div className="grid md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white p-6 rounded-lg shadow">
-            <p className="text-sm text-gray-500">Total Transactions</p>
-            <p className="text-3xl font-bold">{totals.count}</p>
-            <p className="text-xs text-gray-400 mt-1">{totals.pendingCount} pending</p>
+        {/* SUMMARY CARDS */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Realized Revenue</p>
+            <p className="text-2xl font-black text-slate-900">₦{totals.revenue.toLocaleString()}</p>
           </div>
-          <div className="bg-white p-6 rounded-lg shadow">
-            <p className="text-sm text-gray-500">Revenue</p>
-            <p className="text-3xl font-bold text-green-600">₦{totals.revenue.toLocaleString()}</p>
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Gross Profit</p>
+            <p className="text-2xl font-black text-emerald-600">₦{totals.profit.toLocaleString()}</p>
           </div>
-          <div className="bg-white p-6 rounded-lg shadow">
-            <p className="text-sm text-gray-500">Profit</p>
-            <p className="text-3xl font-bold text-blue-600">₦{totals.profit.toLocaleString()}</p>
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Profit Margin</p>
+            <p className="text-2xl font-black text-slate-900">{totals.revenue > 0 ? ((totals.profit / totals.revenue) * 100).toFixed(1) : 0}%</p>
           </div>
-          <div className="bg-white p-6 rounded-lg shadow">
-            <p className="text-sm text-gray-500">Margin</p>
-            <p className="text-3xl font-bold">
-              {totals.revenue ? ((totals.profit / totals.revenue) * 100).toFixed(1) : 0}%
-            </p>
+          <div className="bg-amber-50 p-6 rounded-2xl border border-amber-100 shadow-sm">
+            <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-1">Unpaid / Partial</p>
+            <p className="text-2xl font-black text-amber-900">{totals.pendingCount}</p>
           </div>
         </div>
 
-        {/* Sales Table */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        {/* LEDGER TABLE */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="p-3 text-left">Date</th>
-                  <th className="p-3 text-left">Type</th>
-                  <th className="p-3 text-left">Item/Order</th>
-                  <th className="p-3 text-left">Customer</th>
-                  <th className="p-3 text-right">Amount</th>
-                  <th className="p-3 text-left">Status</th>
-                  <th className="p-3 text-left">Payment</th>
-                  <th className="p-3 text-left">Source</th>
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-100">
+                  <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-tighter">Date</th>
+                  <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-tighter">Item / Order</th>
+                  <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-tighter">Customer</th>
+                  <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-tighter text-right">Amount</th>
+                  <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-tighter">Status</th>
+                  <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-tighter text-center">Source</th>
                 </tr>
               </thead>
-              <tbody>
-                {filteredSales.map((sale: any) => {
-                  const isOrder = sale.source === 'orders_table';
-                  const statusColor = 
-                    sale.payment_status === 'paid' ? 'bg-green-100 text-green-800' :
-                    sale.payment_status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                    'bg-gray-100 text-gray-800';
-                  
-                  return (
-                    <tr key={`${sale.source}-${sale.id}`} className="border-t hover:bg-gray-50">
-                      <td className="p-3">
-                        {new Date(sale.created_at || sale.sale_date).toLocaleDateString()}
-                      </td>
-                      <td className="p-3">
-                        {isOrder ? (
-                          <span className="px-2 py-1 rounded-full text-xs bg-purple-100 text-purple-800">
-                            Online Order
-                          </span>
-                        ) : (
-                          <span className={`px-2 py-1 rounded-full text-xs ${
-                            sale.item_type === 'dog' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
-                          }`}>
-                            {sale.item_type}
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-3 font-medium">
-                        {isOrder ? (
-                          <Link href={`/admin/orders/${sale.id}`} className="text-blue-600 hover:underline">
-                            #{sale.order_reference || `Order-${sale.id}`}
-                          </Link>
-                        ) : (
-                          sale.item_name || 'Sale'
-                        )}
-                        {isOrder && sale.notes && (
-                          <span className="text-xs text-gray-500 block">({sale.notes})</span>
-                        )}
-                      </td>
-                      <td className="p-3">
-                        <div>
-                          <p className="font-medium">{sale.customer_name}</p>
-                          <p className="text-xs text-gray-500">{sale.customer_phone}</p>
-                        </div>
-                      </td>
-                      <td className="p-3 text-right font-bold">
-                        ₦{(sale.price || sale.total_amount || 0).toLocaleString()}
-                      </td>
-                      <td className="p-3">
-                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${statusColor}`}>
-                          {sale.payment_status}
-                        </span>
-                      </td>
-                      <td className="p-3">{sale.payment_method || 'transfer'}</td>
-                      <td className="p-3">
-                        <span className={`text-xs px-2 py-1 rounded-full ${
-                          sale.source === 'orders_table' 
-                            ? 'bg-purple-100 text-purple-700' 
-                            : 'bg-gray-100 text-gray-700'
-                        }`}>
-                          {sale.source === 'orders_table' ? '🛒 Order' : '📝 Manual'}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
+              <tbody className="divide-y divide-slate-50">
+                {filteredSales.map((sale) => (
+                  <tr key={`${sale.source}-${sale.id}`} className="hover:bg-slate-50 transition-colors group">
+                    <td className="p-4">
+                      <p className="text-sm font-bold text-slate-700">{new Date(sale.created_at).toLocaleDateString()}</p>
+                      <p className="text-[10px] text-slate-400 font-medium italic">{new Date(sale.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                    </td>
+                    <td className="p-4">
+                      {sale.source === 'orders_table' ? (
+                        <Link href={`/admin/orders/${sale.id}`} className="text-sm font-black text-indigo-600 hover:underline">
+                          #{sale.order_reference}
+                        </Link>
+                      ) : (
+                        <p className="text-sm font-black text-slate-800">{sale.item_name}</p>
+                      )}
+                      <p className="text-[10px] text-slate-500 font-bold uppercase">{sale.item_type}</p>
+                    </td>
+                    <td className="p-4">
+                      <p className="text-sm font-bold text-slate-700">{sale.customer_name}</p>
+                      <p className="text-[10px] text-slate-400 font-medium">{sale.customer_phone || 'N/A'}</p>
+                    </td>
+                    <td className="p-4 text-right">
+                      <p className="text-sm font-black text-slate-900">₦{sale.price.toLocaleString()}</p>
+                      {sale.deposit_amount && sale.payment_status !== 'paid' && (
+                        <p className="text-[10px] text-emerald-600 font-bold">Paid: ₦{sale.deposit_amount.toLocaleString()}</p>
+                      )}
+                    </td>
+                    <td className="p-4">
+                      <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter ${getStatusStyle(sale.payment_status)}`}>
+                        {sale.payment_status}
+                      </span>
+                    </td>
+                    <td className="p-4 text-center">
+                      <span className={`text-[10px] font-black px-2 py-1 rounded-md ${sale.source === 'orders_table' ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-500'}`}>
+                        {sale.source === 'orders_table' ? '🛒 SHOP' : '📝 KENNEL'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
-
           {filteredSales.length === 0 && (
-            <div className="text-center py-12">
-              <p className="text-gray-500 text-lg">No sales or orders found</p>
-              <div className="mt-4 flex gap-2 justify-center">
-                <Link href="/admin/sales/new" className="bg-black text-white px-4 py-2 rounded-lg">
-                  Record Manual Sale
-                </Link>
-              </div>
+            <div className="p-20 text-center">
+              <p className="text-slate-400 font-bold tracking-widest">ZERO TRANSACTIONS FOUND</p>
             </div>
           )}
         </div>

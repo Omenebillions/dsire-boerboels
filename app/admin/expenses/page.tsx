@@ -1,10 +1,8 @@
-// app/admin/expenses/page.tsx
 "use client";
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 
-// Define the Expense interface
 interface Expense {
   id: number;
   category: string;
@@ -13,7 +11,6 @@ interface Expense {
   date: string;
   receipt_url?: string;
   notes?: string;
-  created_at?: string;
 }
 
 export default function AdminExpensesPage() {
@@ -23,312 +20,192 @@ export default function AdminExpensesPage() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [categoryFilter, setCategoryFilter] = useState('all');
 
+  const categories = [
+    { value: 'food', label: '🍖 Food', color: 'bg-orange-50 text-orange-700 border-orange-100' },
+    { value: 'vaccines', label: '💉 Vaccines', color: 'bg-blue-50 text-blue-700 border-blue-100' },
+    { value: 'supplies', label: '📦 Supplies', color: 'bg-purple-50 text-purple-700 border-purple-100' },
+    { value: 'vet', label: '🏥 Vet', color: 'bg-emerald-50 text-emerald-700 border-emerald-100' },
+    { value: 'marketing', label: '📢 Marketing', color: 'bg-pink-50 text-pink-700 border-pink-100' },
+    { value: 'staff', label: '👥 Staff', color: 'bg-amber-50 text-amber-700 border-amber-100' },
+    { value: 'utilities', label: '💡 Utilities', color: 'bg-slate-50 text-slate-700 border-slate-100' },
+    { value: 'other', label: '📌 Other', color: 'bg-indigo-50 text-indigo-700 border-indigo-100' }
+  ];
+
   useEffect(() => {
     fetchExpenses();
   }, [selectedMonth, selectedYear, categoryFilter]);
 
   const fetchExpenses = async () => {
     setLoading(true);
+    const startDate = new Date(selectedYear, selectedMonth, 1).toISOString().split('T')[0];
+    const endDate = new Date(selectedYear, selectedMonth + 1, 0).toISOString().split('T')[0];
     
-    // Date range for selected month
-    const startDate = new Date(selectedYear, selectedMonth, 1);
-    const endDate = new Date(selectedYear, selectedMonth + 1, 0);
-    
-    let query = supabase
-      .from('expenses')
-      .select('*')
-      .gte('date', startDate.toISOString().split('T')[0])
-      .lte('date', endDate.toISOString().split('T')[0]);
-    
-    if (categoryFilter !== 'all') {
-      query = query.eq('category', categoryFilter);
-    }
+    let query = supabase.from('expenses').select('*').gte('date', startDate).lte('date', endDate);
+    if (categoryFilter !== 'all') query = query.eq('category', categoryFilter);
     
     const { data } = await query.order('date', { ascending: false });
     setExpenses((data as Expense[]) || []);
     setLoading(false);
   };
 
-  const deleteExpense = async (id: number, description: string) => {
-    if (confirm(`Delete expense: ${description}?`)) {
-      await supabase.from('expenses').delete().eq('id', id);
-      fetchExpenses();
-    }
-  };
-
-  // Calculate totals by category
-  const categoryTotals = expenses.reduce((acc: Record<string, number>, exp: Expense) => {
-    const cat = exp.category;
-    if (!acc[cat]) acc[cat] = 0;
-    acc[cat] += exp.amount;
+  const totalExpenses = expenses.reduce((sum, exp) => sum + Number(exp.amount), 0);
+  const categoryTotals = expenses.reduce((acc: any, exp) => {
+    acc[exp.category] = (acc[exp.category] || 0) + Number(exp.amount);
     return acc;
   }, {});
 
-  const totalExpenses = expenses.reduce((sum: number, exp: Expense) => sum + exp.amount, 0);
-
-  // Month selector
-  const months = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ];
-
-  // Available years
-  const currentYear = new Date().getFullYear();
-  const years = [currentYear - 1, currentYear, currentYear + 1];
-
-  const categories = [
-    { value: 'food', label: '🍖 Food', color: 'bg-orange-100 text-orange-800' },
-    { value: 'vaccines', label: '💉 Vaccines', color: 'bg-blue-100 text-blue-800' },
-    { value: 'supplies', label: '📦 Supplies', color: 'bg-purple-100 text-purple-800' },
-    { value: 'vet', label: '🏥 Vet', color: 'bg-green-100 text-green-800' },
-    { value: 'marketing', label: '📢 Marketing', color: 'bg-pink-100 text-pink-800' },
-    { value: 'staff', label: '👥 Staff', color: 'bg-yellow-100 text-yellow-800' },
-    { value: 'utilities', label: '💡 Utilities', color: 'bg-gray-100 text-gray-800' },
-    { value: 'other', label: '📌 Other', color: 'bg-indigo-100 text-indigo-800' }
-  ];
-
   if (loading) return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-48 mb-6"></div>
-          <div className="grid grid-cols-4 gap-4 mb-6">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-24 bg-gray-200 rounded"></div>
-            ))}
-          </div>
-          <div className="h-96 bg-gray-200 rounded"></div>
-        </div>
-      </div>
+    <div className="min-h-screen bg-slate-50 p-10 flex items-center justify-center font-black text-slate-400 animate-pulse">
+      LOADING EXPENDITURE...
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-slate-50 p-8">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+        
+        {/* HEADER */}
+        <header className="mb-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
           <div>
-            <h1 className="text-3xl font-bold">📝 Expenses</h1>
-            <p className="text-gray-500 text-sm mt-1">Track all business expenses</p>
+            <h1 className="text-4xl font-black text-slate-900 tracking-tight">EXPENSES</h1>
+            <p className="text-slate-500 font-medium">Monthly Operational Overhead</p>
           </div>
-          <div className="flex gap-2">
-            <Link
-              href="/admin/expenses/new"
-              className="bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 flex items-center gap-2"
+          <div className="flex gap-3 w-full md:w-auto">
+            <button 
+              onClick={() => {
+                const csv = expenses.map(e => `${e.date},${e.category},${e.description},${e.amount}`).join('\n');
+                const blob = new Blob([`Date,Category,Description,Amount\n${csv}`], { type: 'text/csv' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `Expenses-${selectedMonth + 1}-${selectedYear}.csv`;
+                a.click();
+              }}
+              className="flex-1 md:flex-none bg-white border border-slate-200 text-slate-600 px-6 py-3 rounded-xl font-bold text-xs hover:bg-slate-50 transition-all uppercase tracking-widest"
             >
-              <span>➕</span> Add Expense
+              Export CSV
+            </button>
+            <Link href="/admin/expenses/new" className="flex-1 md:flex-none bg-slate-900 text-white px-8 py-3 rounded-xl font-bold text-xs hover:bg-slate-800 transition-all shadow-lg uppercase tracking-widest text-center">
+              + New Expense
             </Link>
           </div>
-        </div>
+        </header>
 
-        {/* Filters */}
-        <div className="bg-white p-4 rounded-lg shadow mb-6">
-          <div className="grid md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Month</label>
-              <select
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(Number(e.target.value))}
-                className="w-full p-2 border rounded"
-              >
-                {months.map((month, index) => (
-                  <option key={month} value={index}>{month}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
-              <select
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(Number(e.target.value))}
-                className="w-full p-2 border rounded"
-              >
-                {years.map(year => (
-                  <option key={year} value={year}>{year}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-              <select
-                value={categoryFilter}
+        {/* FILTERS & SUMMARY */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+          
+          {/* Controls */}
+          <div className="lg:col-span-1 space-y-4">
+            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Timeframe Filter</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <select 
+                  value={selectedMonth} 
+                  onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                  className="bg-slate-50 border-none rounded-xl font-bold text-slate-700 p-3 focus:ring-2 focus:ring-slate-200"
+                >
+                  {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((m, i) => (
+                    <option key={m} value={i}>{m}</option>
+                  ))}
+                </select>
+                <select 
+                  value={selectedYear} 
+                  onChange={(e) => setSelectedYear(Number(e.target.value))}
+                  className="bg-slate-50 border-none rounded-xl font-bold text-slate-700 p-3 focus:ring-2 focus:ring-slate-200"
+                >
+                  {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </div>
+              <select 
+                value={categoryFilter} 
                 onChange={(e) => setCategoryFilter(e.target.value)}
-                className="w-full p-2 border rounded"
+                className="w-full mt-3 bg-slate-50 border-none rounded-xl font-bold text-slate-700 p-3 focus:ring-2 focus:ring-slate-200"
               >
                 <option value="all">All Categories</option>
-                {categories.map(cat => (
-                  <option key={cat.value} value={cat.value}>{cat.label}</option>
-                ))}
+                {categories.map(cat => <option key={cat.value} value={cat.value}>{cat.label}</option>)}
               </select>
             </div>
+
+            <div className="bg-rose-600 p-8 rounded-3xl shadow-xl shadow-rose-100">
+              <p className="text-[10px] font-black text-rose-200 uppercase tracking-widest mb-1">Total Burn</p>
+              <p className="text-4xl font-black text-white">₦{totalExpenses.toLocaleString()}</p>
+              <div className="mt-4 pt-4 border-t border-rose-500 flex justify-between">
+                <span className="text-xs font-bold text-rose-200 uppercase">{expenses.length} Receipts</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Breakdown Visuals */}
+          <div className="lg:col-span-2 bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
+            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Category Distribution</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {categories.map(cat => {
+                const amount = categoryTotals[cat.value] || 0;
+                const percent = totalExpenses ? (amount / totalExpenses) * 100 : 0;
+                if (amount === 0) return null;
+                return (
+                  <div key={cat.value} className={`p-4 rounded-2xl border ${cat.color} flex justify-between items-center`}>
+                    <div>
+                      <p className="text-[10px] font-black uppercase opacity-60 mb-1">{cat.label}</p>
+                      <p className="text-lg font-black tracking-tight">₦{amount.toLocaleString()}</p>
+                    </div>
+                    <div className="text-right font-black text-xl opacity-20">{percent.toFixed(0)}%</div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white p-6 rounded-lg shadow border-l-4 border-red-500">
-            <p className="text-sm text-gray-500">Total Expenses</p>
-            <p className="text-3xl font-bold text-red-600">₦{totalExpenses.toLocaleString()}</p>
-            <p className="text-xs text-gray-400 mt-1">{months[selectedMonth]} {selectedYear}</p>
-          </div>
-
-          <div className="bg-white p-6 rounded-lg shadow border-l-4 border-orange-500">
-            <p className="text-sm text-gray-500">Highest Category</p>
-            {Object.entries(categoryTotals).length > 0 ? (
-              <>
-                <p className="text-2xl font-bold text-orange-600">
-                  {categories.find(c => c.value === Object.entries(categoryTotals)
-                    .sort((a: any, b: any) => b[1] - a[1])[0]?.[0])?.label || 'N/A'}
-                </p>
-                <p className="text-sm text-gray-600">
-                  ₦{Math.max(...Object.values(categoryTotals)).toLocaleString()}
-                </p>
-              </>
-            ) : (
-              <p className="text-gray-400">No data</p>
-            )}
-          </div>
-
-          <div className="bg-white p-6 rounded-lg shadow border-l-4 border-green-500">
-            <p className="text-sm text-gray-500">Categories</p>
-            <p className="text-3xl font-bold text-green-600">{Object.keys(categoryTotals).length}</p>
-            <p className="text-xs text-gray-400 mt-1">Active categories</p>
-          </div>
-
-          <div className="bg-white p-6 rounded-lg shadow border-l-4 border-blue-500">
-            <p className="text-sm text-gray-500">Transactions</p>
-            <p className="text-3xl font-bold text-blue-600">{expenses.length}</p>
-            <p className="text-xs text-gray-400 mt-1">This month</p>
-          </div>
-        </div>
-
-        {/* Category Breakdown */}
-        <div className="bg-white p-6 rounded-lg shadow mb-6">
-          <h2 className="text-lg font-bold mb-4">Category Breakdown</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {categories.map(cat => {
-              const amount = categoryTotals[cat.value] || 0;
-              const percentage = totalExpenses ? ((amount / totalExpenses) * 100).toFixed(1) : 0;
-              
-              return (
-                <div key={cat.value} className={`p-3 rounded-lg ${cat.color}`}>
-                  <p className="text-sm font-medium">{cat.label}</p>
-                  <p className="text-lg font-bold">₦{amount.toLocaleString()}</p>
-                  <p className="text-xs opacity-75">{percentage}% of total</p>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Expenses Table */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="p-3 text-left">Date</th>
-                  <th className="p-3 text-left">Category</th>
-                  <th className="p-3 text-left">Description</th>
-                  <th className="p-3 text-right">Amount</th>
-                  <th className="p-3 text-left">Notes</th>
-                  <th className="p-3 text-left">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {expenses.map((expense: Expense) => {
-                  const category = categories.find(c => c.value === expense.category) || categories[7];
-                  
-                  return (
-                    <tr key={expense.id} className="border-t hover:bg-gray-50">
-                      <td className="p-3">
-                        {new Date(expense.date).toLocaleDateString()}
-                      </td>
-                      <td className="p-3">
-                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${category.color}`}>
-                          {category.label}
-                        </span>
-                      </td>
-                      <td className="p-3 font-medium">{expense.description}</td>
-                      <td className="p-3 text-right font-bold text-red-600">
-                        ₦{expense.amount.toLocaleString()}
-                      </td>
-                      <td className="p-3 text-sm text-gray-500 max-w-xs truncate">
-                        {expense.notes || '-'}
-                      </td>
-                      <td className="p-3">
-                        <div className="flex gap-2">
-                          <Link
-                            href={`/admin/expenses/edit/${expense.id}`}
-                            className="text-blue-600 hover:underline text-sm"
-                          >
-                            Edit
-                          </Link>
-                          <button
-                            onClick={() => deleteExpense(expense.id, expense.description)}
-                            className="text-red-600 hover:underline text-sm"
-                          >
-                            Delete
-                          </button>
-                          {expense.receipt_url && (
-                            <a
-                              href={expense.receipt_url}
-                              target="_blank"
-                              className="text-gray-600 hover:underline text-sm"
-                            >
-                              Receipt
-                            </a>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-              <tfoot className="bg-gray-50 font-bold">
-                <tr>
-                  <td colSpan={3} className="p-3 text-right">Total:</td>
-                  <td className="p-3 text-right text-red-600">₦{totalExpenses.toLocaleString()}</td>
-                  <td colSpan={2}></td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-
+        {/* LEDGER TABLE */}
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="bg-slate-50/50 border-b border-slate-100">
+                <th className="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
+                <th className="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Description</th>
+                <th className="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Category</th>
+                <th className="p-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Amount</th>
+                <th className="p-5 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">Proof</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {expenses.map((exp) => {
+                const catInfo = categories.find(c => c.value === exp.category) || categories[7];
+                return (
+                  <tr key={exp.id} className="hover:bg-slate-50/50 transition-colors group">
+                    <td className="p-5 text-sm font-bold text-slate-600">
+                      {new Date(exp.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                    </td>
+                    <td className="p-5">
+                      <p className="text-sm font-black text-slate-800">{exp.description}</p>
+                      {exp.notes && <p className="text-[10px] text-slate-400 font-medium italic">{exp.notes}</p>}
+                    </td>
+                    <td className="p-5">
+                      <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase border ${catInfo.color}`}>
+                        {catInfo.label}
+                      </span>
+                    </td>
+                    <td className="p-5 text-right font-black text-rose-600">
+                      ₦{exp.amount.toLocaleString()}
+                    </td>
+                    <td className="p-5 text-center">
+                      {exp.receipt_url ? (
+                        <a href={exp.receipt_url} target="_blank" className="text-indigo-600 hover:text-indigo-800 text-xs font-black underline underline-offset-4">VIEW</a>
+                      ) : (
+                        <span className="text-slate-300 text-[10px] font-bold">N/A</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
           {expenses.length === 0 && (
-            <div className="text-center py-12">
-              <p className="text-gray-500 text-lg">No expenses found for this period</p>
-              <p className="text-gray-400 text-sm mt-1">Try adjusting your filters</p>
-              <Link
-                href="/admin/expenses/new"
-                className="inline-block mt-4 bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800"
-              >
-                Add your first expense
-              </Link>
+            <div className="p-20 text-center">
+              <p className="text-slate-300 font-black tracking-widest">NO RECORDS FOR THIS PERIOD</p>
             </div>
           )}
-        </div>
-
-        {/* Export Button */}
-        <div className="mt-6 flex justify-end">
-          <button
-            onClick={() => {
-              const csv = expenses.map(e => 
-                `${e.date},${e.category},${e.description},${e.amount},${e.notes || ''}`
-              ).join('\n');
-              
-              const blob = new Blob([`Date,Category,Description,Amount,Notes\n${csv}`], { type: 'text/csv' });
-              const url = window.URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = `expenses-${selectedYear}-${selectedMonth + 1}.csv`;
-              a.click();
-            }}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 text-sm"
-          >
-            📥 Export CSV
-          </button>
         </div>
       </div>
     </div>
