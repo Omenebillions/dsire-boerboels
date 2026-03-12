@@ -1,7 +1,7 @@
 // app/admin/users/page.tsx
 "use client";
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';  // Removed supabaseAdmin import
+import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 
 // Define types
@@ -64,7 +64,7 @@ export default function AdminUsersPage() {
     setLoading(true);
 
     try {
-      // Call secure API route instead of using supabaseAdmin directly
+      // Call secure API route
       const response = await fetch('/api/admin/users/create', {
         method: 'POST',
         headers: {
@@ -78,10 +78,19 @@ export default function AdminUsersPage() {
         }),
       });
 
-      const data = await response.json();
+      // Defensive parsing for JSON response
+      const contentType = response.headers.get("content-type");
+      let data;
+      
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const textError = await response.text();
+        throw new Error(`Server returned HTML instead of JSON. Check if the API route exists at /api/admin/users/create/route.ts. \n\nDetails: ${textError.substring(0, 100)}...`);
+      }
 
       if (!response.ok) {
-        throw new Error(data.error);
+        throw new Error(data.error || 'Failed to create user');
       }
 
       alert('User created successfully!');
@@ -150,10 +159,19 @@ export default function AdminUsersPage() {
         }),
       });
 
-      const data = await response.json();
+      // Defensive parsing
+      const contentType = response.headers.get("content-type");
+      let data;
+      
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const textError = await response.text();
+        throw new Error(`Server returned HTML instead of JSON. Check if the API route exists. Details: ${textError.substring(0, 100)}...`);
+      }
 
       if (!response.ok) {
-        throw new Error(data.error);
+        throw new Error(data.error || 'Failed to delete user');
       }
 
       alert('User deleted successfully!');
@@ -257,28 +275,6 @@ export default function AdminUsersPage() {
                                 <option value="manager">Manager</option>
                                 <option value="viewer">Viewer</option>
                               </select>
-                            </div>
-                            <div className="col-span-2">
-                              <label className="block text-sm font-medium mb-2">Permissions</label>
-                              <div className="grid grid-cols-2 gap-2">
-                                {Object.entries(editingUser.permissions).map(([key, value]) => (
-                                  <label key={key} className="flex items-center gap-2">
-                                    <input
-                                      type="checkbox"
-                                      checked={value}
-                                      onChange={(e) => setEditingUser({
-                                        ...editingUser,
-                                        permissions: {
-                                          ...editingUser.permissions,
-                                          [key]: e.target.checked
-                                        }
-                                      })}
-                                      className="rounded"
-                                    />
-                                    <span className="capitalize">{key}</span>
-                                  </label>
-                                ))}
-                              </div>
                             </div>
                           </div>
                           <div className="flex gap-2">

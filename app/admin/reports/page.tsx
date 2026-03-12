@@ -24,7 +24,7 @@ export default function ReportsPage() {
 
     try {
       const [salesRes, ordersRes, expensesRes, dogsRes, productsRes] = await Promise.all([
-        supabase.from('sales').select('*').gte('created_at', startDateStr),
+        supabase.from('sales').select('*').gte('sale_date', startDateStr.split('T')[0]),
         supabase.from('orders').select('*').gte('created_at', startDateStr),
         supabase.from('expenses').select('*').gte('date', startDateStr.split('T')[0]),
         supabase.from('dogs').select('*'),
@@ -37,100 +37,91 @@ export default function ReportsPage() {
       const dogs = dogsRes.data || [];
       const products = productsRes.data || [];
       
-      // --- ACCOUNTING ENGINE: REVENUE RECOGNITION ---
-      
+      // Initialize accumulators
       let dogRevenue = 0;
-      let manualProductRevenue = 0;
-      let salesGrossProfit = 0;
+      let shopRevenue = 0;
+      let totalGrossProfit = 0;
+      let pendingAmount = 0;
 
-      // 1. Process "Sales" Table (Dogs & Manual Entries)
+      // 1. Process Manual Sales & Dog Deposits
       sales.forEach(s => {
-        const isPaid = s.payment_status?.toLowerCase() === 'paid';
+        const amount = Number(s.price || 0);
         
-        // REVENUE: If reserved, only the deposit is income. If paid, the full price is income.
-        const cashReceived = isPaid ? Number(s.price || s.sale_price || 0) : Number(s.deposit_amount || 0);
-        
+        // Track revenue by source
         if (s.item_type === 'dog') {
-          dogRevenue += cashReceived;
-          // PROFIT: Money in hand minus the cost of the dog
-          salesGrossProfit += (cashReceived - Number(s.cost || 0));
+          dogRevenue += amount;
         } else {
-          manualProductRevenue += cashReceived;
-          salesGrossProfit += Number(s.profit || (cashReceived - Number(s.cost || 0)));
+          shopRevenue += amount;
+        }
+        
+        // Calculate profit (use actual cost if available, otherwise estimate 40% margin)
+        const cost = s.cost ? Number(s.cost) : amount * 0.6;
+        totalGrossProfit += (amount - cost);
+      });
+
+      // 2. Process Online Orders (PawShop)
+      orders.forEach(o => {
+        const isPaid = ['paid', 'completed'].includes(o.payment_status?.toLowerCase());
+        const total = Number(o.total_amount || 0);
+        
+        if (isPaid) {
+          shopRevenue += total;
+          
+          // Calculate actual profit based on product costs
+          const items = Array.isArray(o.items) ? o.items : [];
+          let orderCost = 0;
+          
+          items.forEach((item: any) => {
+            const product = products.find(p => p.id === item.product_id);
+            const quantity = item.quantity || 1;
+            
+            if (product?.cost) {
+              // Use actual cost from database
+              orderCost += Number(product.cost) * quantity;
+            } else {
+              // Estimate 40% margin (60% cost) as fallback
+              orderCost += item.price * 0.6 * quantity;
+            }
+          });
+          
+          totalGrossProfit += (total - orderCost);
+        } else {
+          pendingAmount += total;
         }
       });
 
-      // 2. Process "Orders" Table (PawShop / Online Store)
-      const paidOrders = orders.filter(o => 
-        o.payment_status?.toLowerCase() === 'paid' || 
-        o.payment_status?.toLowerCase() === 'completed'
-      );
-      
-      const orderRevenue = paidOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
-      
-      let orderGrossProfit = 0;
-      paidOrders.forEach(order => {
-        const items = Array.isArray(order.items) ? order.items : [];
-        let orderCost = 0;
-        
-        items.forEach((item: any) => {
-          const product = products.find((p: any) => p.id === item.product_id);
-          const qty = Number(item.quantity || 1);
-          
-          if (product?.cost) {
-            orderCost += Number(product.cost) * qty;
-          } else {
-            // Fallback: 40% Margin (60% Cost)
-            orderCost += Number(item.price || 0) * 0.6 * qty;
-          }
-        });
-        orderGrossProfit += (Number(order.total_amount || 0) - orderCost);
+      // 3. Pending Balances for Dogs (Expected Revenue)
+      dogs.forEach(d => {
+        if (d.status === 'reserved' && d.price) {
+          const balance = Number(d.price) - 100000;
+          pendingAmount += Math.max(0, balance);
+        }
       });
 
-      // 3. Expenses
+      // 4. Calculate Expenses
       const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
+      
       const expensesByCat = expenses.reduce((acc: any, e) => {
         const cat = e.category || 'Other';
         acc[cat] = (acc[cat] || 0) + Number(e.amount || 0);
         return acc;
       }, {});
 
-      // 4. Final Financial Consolidation
-      const totalRevenue = dogRevenue + manualProductRevenue + orderRevenue;
-      const totalGrossProfit = salesGrossProfit + orderGrossProfit;
+      // 5. Final Calculations
+      const totalRevenue = dogRevenue + shopRevenue;
       const netIncome = totalGrossProfit - totalExpenses;
-
-      // 5. Pending Balances (Money owed to you)
-      const pendingAmount = sales.reduce((sum, s) => {
-          if (s.payment_status?.toLowerCase() === 'paid') return sum;
-          const balance = Number(s.price || s.sale_price || 0) - Number(s.deposit_amount || 0);
-          return sum + balance;
-        }, 0) + 
-        orders.filter(o => o.payment_status?.toLowerCase() !== 'paid' && o.payment_status?.toLowerCase() !== 'completed')
-        .reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
-
-      // 6. Performance Tracking
-      const getTopPerformers = (type: string) => {
-        const map = new Map();
-        sales.filter(s => s.item_type === type && s.payment_status === 'paid').forEach(s => {
-          const name = s.item_name || 'Unknown';
-          const current = map.get(name) || { count: 0, revenue: 0 };
-          map.set(name, { count: current.count + 1, revenue: current.revenue + Number(s.price || s.sale_price || 0) });
-        });
-        return Array.from(map.entries()).map(([name, stats]: any) => ({ name, ...stats }))
-          .sort((a, b) => b.revenue - a.revenue).slice(0, 3);
-      };
+      const margin = totalRevenue > 0 ? (netIncome / totalRevenue) * 100 : 0;
 
       setData({
         revenue: {
           total: totalRevenue,
           dogs: dogRevenue,
-          shop: manualProductRevenue + orderRevenue,
+          shop: shopRevenue,
         },
         profit: {
           gross: totalGrossProfit,
           net: netIncome,
-          margin: totalRevenue > 0 ? (netIncome / totalRevenue) * 100 : 0
+          margin: margin
         },
         expenses: {
           total: totalExpenses,
@@ -141,12 +132,7 @@ export default function ReportsPage() {
           dogs: dogs.length,
           products: products.length,
           lowStock: products.filter((p: any) => p.stock > 0 && p.stock < 5).length,
-          outOfStock: products.filter((p: any) => p.stock <= 0).length,
           lowStockItems: products.filter((p: any) => p.stock > 0 && p.stock < 5).slice(0, 3)
-        },
-        topPerformers: {
-          dogs: getTopPerformers('dog'),
-          products: getTopPerformers('product')
         }
       });
 
@@ -158,25 +144,28 @@ export default function ReportsPage() {
   };
 
   if (loading || !data) return (
-    <div className="min-h-screen bg-slate-50 p-10 flex items-center justify-center font-bold text-slate-400 animate-pulse">
-      SYNCING LEDGERS...
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="text-center">
+        <div className="w-16 h-16 border-4 border-slate-900 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+        <p className="font-black text-slate-400">CALCULATING REVENUE...</p>
+      </div>
     </div>
   );
 
   return (
     <div className="min-h-screen bg-slate-50 p-8">
       <div className="max-w-6xl mx-auto">
-        <header className="mb-10 flex justify-between items-end">
+        <header className="mb-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
           <div>
-            <h1 className="text-4xl font-black text-slate-900 tracking-tight">FINANCIALS</h1>
-            <p className="text-slate-500 font-medium">Dog Kennel & PawShop Consolidated Report</p>
+            <h1 className="text-5xl font-black text-slate-900 tracking-tighter italic">FINANCIALS</h1>
+            <p className="text-slate-500 font-medium">Business Intelligence Dashboard</p>
           </div>
           <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
             {['week', 'month', 'year'].map(p => (
               <button 
                 key={p} 
                 onClick={() => setPeriod(p)} 
-                className={`px-5 py-2 rounded-lg text-xs font-black transition-all ${
+                className={`px-6 py-2 rounded-lg text-xs font-black transition-all ${
                   period === p ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:text-slate-900'
                 }`}
               >
@@ -186,136 +175,73 @@ export default function ReportsPage() {
           </div>
         </header>
 
-        {/* FINANCIAL GRID */}
+        {/* MAIN METRICS */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Realized Revenue</p>
-            <p className="text-4xl font-black text-emerald-600">₦{data.revenue.total.toLocaleString()}</p>
-            <div className="mt-6 space-y-2 border-t border-slate-50 pt-4">
-               <div className="flex justify-between text-xs font-bold text-slate-500">
-                 <span>Kennel</span>
-                 <span>₦{data.revenue.dogs.toLocaleString()}</span>
-               </div>
-               <div className="flex justify-between text-xs font-bold text-slate-500">
-                 <span>PawShop</span>
-                 <span>₦{data.revenue.shop.toLocaleString()}</span>
-               </div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Revenue</p>
+            <p className="text-4xl font-black text-slate-900">₦{data.revenue.total.toLocaleString()}</p>
+            <div className="mt-4 flex gap-2">
+              <div className="text-[10px] font-bold px-2 py-1 bg-emerald-50 text-emerald-700 rounded">
+                🐕 Kennel: ₦{data.revenue.dogs.toLocaleString()}
+              </div>
+              <div className="text-[10px] font-bold px-2 py-1 bg-blue-50 text-blue-700 rounded">
+                🛒 Shop: ₦{data.revenue.shop.toLocaleString()}
+              </div>
             </div>
           </div>
 
           <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Total Expenses</p>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Expenses</p>
             <p className="text-4xl font-black text-rose-600">₦{data.expenses.total.toLocaleString()}</p>
-            <div className="mt-6 space-y-2 border-t border-slate-50 pt-4">
-              {Object.keys(data.expenses.categories).length > 0 ? (
-                Object.entries(data.expenses.categories).slice(0, 2).map(([cat, val]: any) => (
-                  <div key={cat} className="flex justify-between text-xs font-bold text-slate-500 capitalize">
-                    <span>{cat}</span>
-                    <span>₦{val.toLocaleString()}</span>
-                  </div>
-                ))
-              ) : (
-                <div className="flex justify-between text-xs font-bold text-slate-400">
-                  <span>No expenses</span>
-                  <span>₦0</span>
-                </div>
-              )}
-              {Object.keys(data.expenses.categories).length > 2 && (
-                <div className="text-xs text-slate-400 text-right">
-                  +{Object.keys(data.expenses.categories).length - 2} more
-                </div>
-              )}
-            </div>
+            <p className="text-xs font-bold text-slate-400 mt-2 italic">Operating costs including inventory & utilities</p>
           </div>
 
-          <div className="bg-slate-900 p-8 rounded-3xl shadow-2xl border border-slate-800">
-            <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">Net Income</p>
+          <div className="bg-slate-900 p-8 rounded-3xl shadow-2xl">
+            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Net Profit</p>
             <p className="text-4xl font-black text-white">₦{data.profit.net.toLocaleString()}</p>
-            <div className="mt-6 pt-4 border-t border-slate-800 flex justify-between items-center">
-               <span className="text-[10px] font-bold text-slate-400 uppercase">Profit Margin</span>
-               <span className="text-lg font-black text-emerald-400">{data.profit.margin.toFixed(1)}%</span>
+            <div className="mt-4 flex items-center justify-between">
+              <span className="text-[10px] text-slate-400 font-bold">MARGIN</span>
+              <span className="text-xl font-black text-emerald-400">{data.profit.margin.toFixed(1)}%</span>
             </div>
           </div>
         </div>
 
-        {/* INSIGHTS GRID */}
+        {/* SECONDARY INSIGHTS */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-amber-50 p-8 rounded-3xl border border-amber-100">
-            <h3 className="text-amber-900 font-black text-lg mb-2">Accounts Receivable</h3>
-            <p className="text-amber-700 text-sm mb-6 leading-relaxed">
-              Money currently tied up in pending dog balances and unpaid orders.
-            </p>
-            <p className="text-4xl font-black text-amber-900">₦{data.pending.toLocaleString()}</p>
+          <div className="bg-amber-400 p-8 rounded-3xl text-amber-950">
+            <h3 className="font-black text-xl mb-1 uppercase tracking-tighter">Accounts Receivable</h3>
+            <p className="text-sm font-medium opacity-80 mb-6">Uncollected balances from reserved dogs and open orders.</p>
+            <p className="text-5xl font-black">₦{data.pending.toLocaleString()}</p>
           </div>
 
           <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
-            <h3 className="text-slate-900 font-black text-lg mb-6">Inventory Health</h3>
-            <div className="grid grid-cols-2 gap-4">
-               <div className="bg-slate-50 p-4 rounded-2xl">
-                 <p className="text-2xl font-black">{data.inventory.dogs}</p>
-                 <p className="text-[10px] font-bold text-slate-400 uppercase">Dogs in Kennel</p>
-               </div>
-               <div className="bg-slate-50 p-4 rounded-2xl">
-                 <p className="text-2xl font-black text-orange-600">{data.inventory.lowStock}</p>
-                 <p className="text-[10px] font-bold text-slate-400 uppercase">Low Stock SKUs</p>
-               </div>
+            <h3 className="font-black text-slate-900 text-lg mb-4">Inventory & Stock</h3>
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="bg-slate-50 p-4 rounded-2xl">
+                <p className="text-2xl font-black">{data.inventory.dogs}</p>
+                <p className="text-[10px] font-bold text-slate-400">DOGS ONSITE</p>
+              </div>
+              <div className="bg-slate-50 p-4 rounded-2xl">
+                <p className="text-2xl font-black text-orange-600">{data.inventory.lowStock}</p>
+                <p className="text-[10px] font-bold text-slate-400">LOW STOCK ITEMS</p>
+              </div>
             </div>
             
-            {/* Low Stock Items List */}
             {data.inventory.lowStockItems.length > 0 && (
-              <div className="mt-6 pt-6 border-t border-slate-100">
-                <p className="text-xs font-bold text-slate-500 mb-3">ITEMS NEEDING ATTENTION</p>
-                <div className="space-y-2">
-                  {data.inventory.lowStockItems.map((item: any) => (
-                    <div key={item.id} className="flex justify-between items-center">
-                      <span className="text-sm font-medium text-slate-700">{item.name}</span>
-                      <span className="text-xs font-bold text-orange-600 bg-orange-50 px-2 py-1 rounded-full">
-                        {item.stock} left
-                      </span>
-                    </div>
-                  ))}
-                </div>
+              <div className="space-y-2 border-t pt-4">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Needs Restocking</p>
+                {data.inventory.lowStockItems.map((item: any) => (
+                  <div key={item.id} className="flex justify-between items-center text-sm">
+                    <span className="text-slate-700 font-medium">{item.name}</span>
+                    <span className="font-black text-rose-500 bg-rose-50 px-2 py-0.5 rounded-full text-xs">
+                      {item.stock} left
+                    </span>
+                  </div>
+                ))}
               </div>
             )}
           </div>
         </div>
-
-        {/* TOP PERFORMERS - Optional Add-on */}
-        {(data.topPerformers.dogs.length > 0 || data.topPerformers.products.length > 0) && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-            {data.topPerformers.dogs.length > 0 && (
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                <h3 className="font-black text-slate-900 mb-4 flex items-center gap-2">
-                  <span>🏆</span> Top Selling Dogs
-                </h3>
-                <div className="space-y-3">
-                  {data.topPerformers.dogs.map((dog: any, idx: number) => (
-                    <div key={idx} className="flex justify-between items-center border-b border-slate-100 pb-2 last:border-0">
-                      <span className="font-medium">{dog.name}</span>
-                      <span className="font-bold text-emerald-600">₦{dog.revenue.toLocaleString()}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {data.topPerformers.products.length > 0 && (
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                <h3 className="font-black text-slate-900 mb-4 flex items-center gap-2">
-                  <span>🏆</span> Top Selling Products
-                </h3>
-                <div className="space-y-3">
-                  {data.topPerformers.products.map((product: any, idx: number) => (
-                    <div key={idx} className="flex justify-between items-center border-b border-slate-100 pb-2 last:border-0">
-                      <span className="font-medium">{product.name}</span>
-                      <span className="font-bold text-emerald-600">₦{product.revenue.toLocaleString()}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );
