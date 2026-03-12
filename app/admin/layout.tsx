@@ -17,6 +17,19 @@ export default function AdminLayout({
 
   useEffect(() => {
     checkUser();
+    
+    // Subscribe to auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        router.push('/admin/login');
+      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        if (session) {
+          checkUser();
+        }
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const checkUser = async () => {
@@ -55,6 +68,13 @@ export default function AdminLayout({
     router.push('/admin/login');
   };
 
+  const handleRefreshSession = async () => {
+    setLoading(true);
+    await supabase.auth.refreshSession();
+    await checkUser();
+    setLoading(false);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -85,11 +105,22 @@ export default function AdminLayout({
             </div>
             
             <div className="flex items-center gap-4">
-              <span className="text-sm text-gray-600 hidden md:block">
-                {user?.email}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600 hidden md:block">
+                  {user?.email}
+                </span>
+                
+                {/* Session Refresh Button */}
+                <button
+                  onClick={handleRefreshSession}
+                  className="text-xs text-gray-400 hover:text-gray-600 transition"
+                  title="Refresh session"
+                >
+                  🔄
+                </button>
+              </div>
               
-              {/* ADD PASSWORD CHANGE LINK HERE */}
+              {/* Password Change Link */}
               <Link
                 href="/admin/password"
                 className="text-sm text-blue-600 hover:text-blue-700 transition flex items-center gap-1"
@@ -114,6 +145,7 @@ export default function AdminLayout({
         </div>
       </header>
 
+      {/* Navigation (unchanged) */}
       <nav className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex space-x-6 overflow-x-auto py-2">
