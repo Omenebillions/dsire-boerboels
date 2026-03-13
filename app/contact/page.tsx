@@ -4,7 +4,7 @@ import Image from 'next/image';
 
 export default function ContactPage() {
   const WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "2347019996837";
-  const EMAIL = "dsireboerboels@gmail.com";
+  const EMAIL = "dsire.boerboels@gmail.com";
   const PHONE = "+2347019996837";
 
   return (
@@ -64,14 +64,21 @@ export default function ContactPage() {
                 </a>
               </div>
 
-              {/* Location Card */}
+              {/* Location Card - Updated with clickable link */}
               <div className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition border border-gray-100">
                 <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mb-4">
                   <span className="text-2xl">📍</span>
                 </div>
                 <h3 className="font-bold text-lg mb-2">Location</h3>
                 <p className="text-gray-600 mb-3">Visit our kennel</p>
-                <p className="text-red-600 font-medium">Abuja, Nigeria</p>
+                <a 
+                  href="https://www.google.com/maps/place/D+Sire+Kennels/@8.9667859,7.3363227,15z/data=!4m6!3m5!1s0x104e73ecba8f3d89:0xbedde5de55a0a2dd!8m2!3d8.9667859!4d7.3363227!16s%2Fg%2F11x953y1l3?entry=ttu&g_ep=EgoyMDI2MDMxMC4wIKXMDSoASAFQAw%3D%3D"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-red-600 font-medium hover:underline"
+                >
+                  Abuja, Nigeria
+                </a>
               </div>
             </div>
 
@@ -101,91 +108,95 @@ export default function ContactPage() {
           </div>
 
           {/* Right Column - Contact Form */}
-          <form 
-  action="https://formsubmit.co/dsireboerboels@gmail.com" 
-  method="POST"
-  className="space-y-4"
->
-  {/* These hidden fields control the email */}
-  <input type="hidden" name="_subject" value="New Contact from Dsire Website" />
-  <input type="hidden" name="_captcha" value="false" />
-  <input type="hidden" name="_next" value="https://dsire-boerboels.vercel.app/contact-success" />
-  <input type="hidden" name="_template" value="table" />
-  
-  {/* Your form fields - names will be the email labels */}
-  <div className="grid sm:grid-cols-2 gap-4">
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
-      <input
-        type="text"
-        name="First Name"
-        required
-        className="w-full p-3 border rounded-lg"
-      />
-    </div>
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
-      <input
-        type="text"
-        name="Last Name"
-        required
-        className="w-full p-3 border rounded-lg"
-      />
-    </div>
-  </div>
+          <div className="bg-white rounded-xl shadow-md p-8 border border-gray-100">
+            <h2 className="text-2xl font-bold mb-6">Send Us a Message</h2>
+            
+            <form 
+              action="https://formsubmit.co/dsireboerboels@gmail.com" 
+              method="POST"
+              className="space-y-4"
+            >
+              {/* Hidden fields */}
+              <input type="hidden" name="_subject" value="New Contact from Dsire Website" />
+              <input type="hidden" name="_captcha" value="false" />
+              <input type="hidden" name="_next" value="https://dsire-boerboels.vercel.app/contact-success" />
+              <input type="hidden" name="_template" value="table" />
+              
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
+                  <input
+                    type="text"
+                    name="First Name"
+                    required
+                    className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
+                  <input
+                    type="text"
+                    name="Last Name"
+                    required
+                    className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
 
-  <div>
-    <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
-    <input
-      type="email"
-      name="Email"
-      required
-      className="w-full p-3 border rounded-lg"
-    />
-  </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+                <input
+                  type="email"
+                  name="Email"
+                  required
+                  className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
 
-  <div>
-    <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
-    <input
-      type="tel"
-      name="Phone"
-      className="w-full p-3 border rounded-lg"
-    />
-  </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                <input
+                  type="tel"
+                  name="Phone"
+                  className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
 
-  <div>
-    <label className="block text-sm font-medium text-gray-700 mb-1">Subject *</label>
-    <select
-      name="Subject"
-      required
-      className="w-full p-3 border rounded-lg"
-    >
-      <option value="">Select a topic</option>
-      <option value="Puppy Inquiry">Puppy Inquiry</option>
-      <option value="Stud Service">Stud Service</option>
-      <option value="Training Programs">Training Programs</option>
-      <option value="Schedule a Visit">Schedule a Visit</option>
-      <option value="Other">Other</option>
-    </select>
-  </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Subject *</label>
+                <select
+                  name="Subject"
+                  required
+                  className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select a topic</option>
+                  <option value="Puppy Inquiry">Puppy Inquiry</option>
+                  <option value="Stud Service">Stud Service</option>
+                  <option value="Training Programs">Training Programs</option>
+                  <option value="Schedule a Visit">Schedule a Visit</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
 
-  <div>
-    <label className="block text-sm font-medium text-gray-700 mb-1">Message *</label>
-    <textarea
-      name="Message"
-      required
-      rows={4}
-      className="w-full p-3 border rounded-lg"
-    />
-  </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Message *</label>
+                <textarea
+                  name="Message"
+                  required
+                  rows={4}
+                  className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
 
-  <button
-    type="submit"
-    className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 transition"
-  >
-    Send Message
-  </button>
-</form>            <p className="text-xs text-gray-400 text-center mt-4">
+              <button
+                type="submit"
+                className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 transition"
+              >
+                Send Message
+              </button>
+            </form>
+            
+            <p className="text-xs text-gray-400 text-center mt-4">
               We'll get back to you within 24 hours
             </p>
           </div>
@@ -195,13 +206,17 @@ export default function ContactPage() {
         <div className="mt-12 bg-white rounded-xl shadow-md p-6 border border-gray-100">
           <h2 className="text-2xl font-bold mb-4">📍 Our Location</h2>
           <div className="bg-gray-200 h-80 rounded-lg flex items-center justify-center text-gray-500">
-            {/* Replace with actual Google Map embed */}
             <div className="text-center">
               <p className="text-lg mb-2">Abuja, Nigeria</p>
               <p className="text-sm">Exact address provided upon appointment</p>
-              <button className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition">
+              <a 
+                href="https://www.google.com/maps/place/D+Sire+Kennels/@8.9667859,7.3363227,15z/data=!4m6!3m5!1s0x104e73ecba8f3d89:0xbedde5de55a0a2dd!8m2!3d8.9667859!4d7.3363227!16s%2Fg%2F11x953y1l3?entry=ttu&g_ep=EgoyMDI2MDMxMC4wIKXMDSoASAFQAw%3D%3D"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
+              >
                 Get Directions
-              </button>
+              </a>
             </div>
           </div>
         </div>
@@ -216,6 +231,6 @@ export default function ContactPage() {
           </p>
         </div>
       </div>
-    
+    </div>
   );
 }

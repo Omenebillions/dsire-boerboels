@@ -1,3 +1,4 @@
+// app/admin/orders/page.tsx
 "use client";
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -52,8 +53,8 @@ export default function AdminOrdersPage() {
 
     if (!error) {
       if (newStatus === 'paid') {
-        // Log individual items into Sales table for accounting
-        const saleEntries = order.items.map(item => ({
+        // Insert into sales table
+        const saleEntries = order.items.map((item: any) => ({
           order_reference: order.order_reference,
           item_type: 'product',
           item_id: item.product_id,
@@ -68,6 +69,14 @@ export default function AdminOrdersPage() {
 
         await supabase.from('sales').insert(saleEntries);
       }
+      fetchOrders();
+    }
+  };
+
+  const deleteOrder = async (orderId: number, orderRef: string) => {
+    if (!confirm(`Are you sure you want to delete order #${orderRef}?`)) return;
+    const { error } = await supabase.from('orders').delete().eq('id', orderId);
+    if (!error) {
       fetchOrders();
     }
   };
@@ -160,20 +169,43 @@ export default function AdminOrdersPage() {
                     </span>
                   </td>
                   <td className="p-5">
-                    <div className="flex justify-center gap-3">
+                    <div className="flex justify-center gap-2">
                       <button 
                         onClick={() => { setSelectedOrder(order); setShowDetailsModal(true); }}
                         className="p-2 hover:bg-slate-100 rounded-lg transition-all text-slate-600 font-bold text-xs uppercase"
+                        title="View Details"
                       >
-                        Details
+                        👁️
+                      </button>
+                      {order.payment_status === 'pending' && (
+                        <select
+                          value={order.payment_status}
+                          onChange={(e) => updatePaymentStatus(order.id, e.target.value)}
+                          className="text-xs border rounded p-1 bg-white"
+                        >
+                          <option value="pending">Pending</option>
+                          <option value="paid">Paid</option>
+                          <option value="failed">Failed</option>
+                        </select>
+                      )}
+                      {order.payment_status === 'paid' && (
+                        <span className="text-xs text-slate-400 px-2">✔️</span>
+                      )}
+                      <button
+                        onClick={() => deleteOrder(order.id, order.order_reference)}
+                        className="p-2 hover:bg-red-100 rounded-lg transition-all text-red-600 font-bold text-xs uppercase"
+                        title="Delete Order"
+                      >
+                        🗑️
                       </button>
                       {order.payment_status === 'pending' && (
                         <a 
                           href={`https://wa.me/${order.customer_phone.replace(/\D/g, '')}`} 
                           target="_blank"
                           className="p-2 bg-emerald-100 text-emerald-700 rounded-lg text-xs font-black uppercase tracking-tighter"
+                          title="WhatsApp Customer"
                         >
-                          WhatsApp
+                          💬
                         </a>
                       )}
                     </div>
@@ -185,7 +217,7 @@ export default function AdminOrdersPage() {
         </div>
       </div>
 
-      {/* MODAL */}
+      {/* MODAL (unchanged) */}
       {showDetailsModal && selectedOrder && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-[40px] max-w-2xl w-full p-8 shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">

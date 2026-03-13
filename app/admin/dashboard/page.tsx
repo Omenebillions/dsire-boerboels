@@ -212,7 +212,7 @@ export default function AdminDashboard() {
                 <Image src="/logo.png" alt="Logo" width={64} height={64} className="object-contain p-2" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">{greeting}, Breeder</h1>
+                <h1 className="text-2xl font-bold text-gray-900">{greeting}, Mr Obinna</h1>
                 <p className="text-sm text-gray-500">{currentTime}</p>
               </div>
             </div>

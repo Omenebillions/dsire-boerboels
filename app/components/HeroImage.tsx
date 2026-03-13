@@ -1,23 +1,27 @@
+// app/components/HeroImage.tsx
 "use client";
+
 import Image from 'next/image';
 import { useState } from 'react';
 
 export default function HeroImage() {
-  const [error, setError] = useState(false);
+  const [imageError, setImageError] = useState(false);
+
+  if (imageError) {
+    // Fallback gradient background
+    return <div className="absolute inset-0 bg-gradient-to-r from-gray-900 to-gray-800"></div>;
+  }
+
   return (
     <div className="absolute inset-0 w-full h-full">
-      {!error ? (
-        <Image
-          src="/hero.png"
-          alt="Dsire Kennels"
-          fill
-          className="object-cover"
-          priority
-          onError={() => setError(true)}
-        />
-      ) : (
-        <div className="w-full h-full bg-gradient-to-r from-blue-900 to-black" />
-      )}
+      <Image
+        src="/hero.png"
+        alt="Dsire Boerboels - Premium Boerboel Kennel"
+        fill
+        className="object-cover"
+        priority
+        onError={() => setImageError(true)}
+      />
     </div>
   );
 }

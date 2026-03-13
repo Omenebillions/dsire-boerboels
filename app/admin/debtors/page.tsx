@@ -1,4 +1,3 @@
-// app/admin/debtors/page.tsx
 "use client";
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -36,6 +35,7 @@ export default function DebtorsPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [updatingId, setUpdatingId] = useState<number | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -73,6 +73,20 @@ export default function DebtorsPage() {
     const { data: debtsData } = await query;
     setDebts((debtsData as Debt[]) || []);
     setLoading(false);
+  };
+
+  const updateStatus = async (id: number, newStatus: string) => {
+    setUpdatingId(id);
+    
+    const { error } = await supabase
+      .from('debts')
+      .update({ status: newStatus })
+      .eq('id', id);
+
+    if (!error) {
+      fetchData();
+    }
+    setUpdatingId(null);
   };
 
   // Calculate summary stats
@@ -119,7 +133,6 @@ export default function DebtorsPage() {
             <p className="text-gray-600 text-sm mt-1">Track who owes you money</p>
           </div>
           
-          {/* BUTTONS - ONLY ONCE */}
           <div className="flex gap-3">
             <Link
               href="/admin/debtors/new"
@@ -177,7 +190,7 @@ export default function DebtorsPage() {
                 placeholder="Search by customer name or invoice..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full p-2 border rounded"
+                className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500"
               />
             </div>
             <div className="flex gap-2">
@@ -229,10 +242,10 @@ export default function DebtorsPage() {
                     return (
                       <tr key={debt.id} className="border-t hover:bg-gray-50">
                         <td className="p-3">
-                          <div>
+                          <Link href={`/admin/debtors/customers/${debt.customer_id}`} className="hover:text-blue-600">
                             <p className="font-medium">{debt.customers?.name}</p>
                             <p className="text-xs text-gray-500">{debt.customers?.phone}</p>
-                          </div>
+                          </Link>
                         </td>
                         <td className="p-3 font-mono text-sm">{debt.invoice_number || '-'}</td>
                         <td className="p-3 max-w-xs">
@@ -259,14 +272,20 @@ export default function DebtorsPage() {
                           </div>
                         </td>
                         <td className="p-3">
-                          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                            debt.status === 'paid' ? 'bg-green-100 text-green-800' :
-                            debt.status === 'partial' ? 'bg-yellow-100 text-yellow-800' :
-                            debt.status === 'overdue' ? 'bg-red-100 text-red-800' :
-                            'bg-blue-100 text-blue-800'
-                          }`}>
-                            {debt.status}
-                          </span>
+                          <select
+                            value={debt.status}
+                            onChange={(e) => updateStatus(debt.id, e.target.value)}
+                            disabled={updatingId === debt.id}
+                            className={`border rounded p-1 text-sm ${
+                              debt.status === 'paid' ? 'bg-green-50' :
+                              debt.status === 'partial' ? 'bg-yellow-50' :
+                              'bg-gray-50'
+                            }`}
+                          >
+                            <option value="pending">Pending</option>
+                            <option value="partial">Partial</option>
+                            <option value="paid">Paid</option>
+                          </select>
                         </td>
                         <td className="p-3">
                           <div className="flex gap-2">
@@ -274,7 +293,7 @@ export default function DebtorsPage() {
                               href={`/admin/debtors/${debt.id}`}
                               className="text-blue-600 hover:underline text-sm"
                             >
-                              View
+                              Details
                             </Link>
                             <Link
                               href={`/admin/debtors/${debt.id}/payment`}
@@ -282,13 +301,6 @@ export default function DebtorsPage() {
                             >
                               Payment
                             </Link>
-                            <button
-                              onClick={() => alert('Send reminder - coming soon')}
-                              className="text-yellow-600 hover:underline text-sm"
-                              title="Send payment reminder"
-                            >
-                              🔔
-                            </button>
                           </div>
                         </td>
                       </tr>

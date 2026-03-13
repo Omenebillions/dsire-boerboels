@@ -1,6 +1,6 @@
 // app/page.tsx
 import Link from 'next/link';
-import HeroImage from '@/app/components/HeroImage';
+import HeroImage from '@/app/components/HeroImage'; // Import the client component
 import FeaturedPuppies from '@/app/components/FeaturedPuppies';
 import TestimonialCarousel from '@/app/components/TestimonialCarousel';
 import WhyChooseUs from '@/app/components/WhyChooseUs';
@@ -10,16 +10,20 @@ export default function Page() {
     <div>
       {/* HERO SECTION */}
       <section className="relative h-[80vh] w-full overflow-hidden">
+        {/* Client component handles the image with error fallback */}
         <HeroImage />
+        
+        {/* Dark overlay */}
         <div className="absolute inset-0 bg-gradient-to-r from-black/70 to-black/40"></div>
         
+        {/* Content - unchanged */}
         <div className="relative h-full max-w-7xl mx-auto px-6 flex flex-col justify-center">
           <span className="inline-block bg-yellow-500 text-black text-sm font-semibold px-4 py-2 rounded-full mb-6 w-fit">
             🏆 Premier Boerboel Kennel in Nigeria
           </span>
           
           <h1 className="text-5xl md:text-7xl font-bold text-white max-w-4xl leading-tight">
-            Premium Kennels
+            Premium Boerboels
             <span className="block text-yellow-400">Strong • Healthy • Champion Bloodline</span>
           </h1>
           
@@ -67,7 +71,7 @@ export default function Page() {
         </div>
       </section>
 
-      {/* TRUST BADGES */}
+      {/* Rest of your page remains exactly the same */}
       <section className="bg-gray-50 py-12 border-y border-gray-200">
         <div className="max-w-7xl mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-6">
           {[
@@ -84,7 +88,6 @@ export default function Page() {
         </div>
       </section>
 
-      {/* FEATURED PUPPIES */}
       <section className="px-6 py-20 max-w-7xl mx-auto">
         <div className="flex justify-between items-end mb-12">
           <div>
@@ -106,7 +109,6 @@ export default function Page() {
         </div>
       </section>
 
-      {/* INSTAGRAM FEED */}
       <section id="instagram-feed" className="bg-gray-50 py-20">
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-12">
@@ -128,7 +130,6 @@ export default function Page() {
             </a>
           </div>
           
-          {/* Fouita Widget */}
           <div className="fouita-widget-container">
             <div data-key="Instagram Feed" className="ft" id="ftrc98dpg"></div>
             <script src="https://wdg.fouita.com/widgets/0x3f59f8.js"></script>
@@ -136,10 +137,8 @@ export default function Page() {
         </div>
       </section>
 
-      {/* WHY CHOOSE US */}
       <WhyChooseUs />
 
-      {/* TESTIMONIALS */}
       <section className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-12">
@@ -153,7 +152,6 @@ export default function Page() {
         </div>
       </section>
 
-      {/* CTA BANNER */}
       <section className="bg-black text-white py-20">
         <div className="max-w-4xl mx-auto text-center px-6">
           <h2 className="text-4xl md:text-5xl font-bold mb-6">Ready to Welcome a Boerboel Home?</h2>
