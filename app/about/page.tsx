@@ -99,22 +99,22 @@ export default function AboutPage() {
             </div>
 
             {/* CTA Buttons */}
-<div className="flex gap-3">
-  <Link 
-    href="/contact" 
-    className="flex-1 bg-black text-white text-center py-3 rounded-lg font-bold hover:bg-yellow-600 hover:text-black transition-all shadow-md"
-  >
-    Contact Us
-  </Link>
-  <a 
-    href={`https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '2347019996837'}`}
-    target="_blank"
-    rel="noopener noreferrer"
-    className="flex-1 bg-green-600 text-white text-center py-3 rounded-lg font-bold hover:bg-green-700 transition-all shadow-md"
-  >
-    WhatsApp
-  </a>
-</div>
+            <div className="flex gap-3">
+              <Link 
+                href="/contact" 
+                className="flex-1 bg-blue text-white text-center py-3 rounded-lg font-bold hover:bg-gray-800 transition shadow-md"
+              >
+                Contact Us
+              </Link>
+              <a 
+                href={`https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '2347019996837'}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 bg-green-600 text-white text-center py-3 rounded-lg font-bold hover:bg-green-700 transition shadow-md"
+              >
+                WhatsApp
+              </a>
+            </div>
           </div>
         </div>
 
