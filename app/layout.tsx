@@ -74,10 +74,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <footer className="p-4 md:p-6 text-center text-gray-500 border-t mt-10">
           <div className="flex flex-col items-center justify-center gap-3">
             <span className="text-lg font-bold text-gray-700">DSIRE KENNELS</span>
-            <p className="text-sm md:text-base">© {new Date().getFullYear()} DSIRE KENNELS — All Rights Reserved</p>
+          <p className="text-sm md:text-base">© {new Date().getFullYear()} DSIRE KENNELS — All Rights Reserved</p>
           </div>
           <div className="mt-2 text-xs md:text-sm">
-            <span>A tintville Design. </span>
+            <a 
+              href="https://wa.me/2348038744441" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="hover:text-green-600 transition-colors"
+            >
+              A tintville Design
+            </a>
           </div>
         </footer>
       </body>
