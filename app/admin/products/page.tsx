@@ -5,22 +5,15 @@ import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import Image from 'next/image';
 
-// Define the Product interface
 interface Product {
   id: number;
   name: string;
-  description?: string;
   price: number;
-  cost?: number;
-  compare_price?: number;
   category: string;
-  images?: string[];
   stock: number;
   in_stock: boolean;
-  featured?: boolean;
-  weight?: string;
-  brand?: string;
-  sku?: string;
+  featured: boolean;
+  images?: string[];
   created_at?: string;
 }
 
@@ -28,24 +21,38 @@ export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [stockFilter, setStockFilter] = useState('all');
 
   useEffect(() => {
     fetchProducts();
-  }, []);
+  }, [categoryFilter, stockFilter]);
 
   const fetchProducts = async () => {
-    const { data } = await supabase
-      .from('products')
-      .select('*')
-      .order('created_at', { ascending: false });
+    setLoading(true);
+    let query = supabase.from('products').select('*');
     
+    if (categoryFilter !== 'all') {
+      query = query.eq('category', categoryFilter);
+    }
+    
+    if (stockFilter === 'in-stock') {
+      query = query.eq('in_stock', true).gt('stock', 0);
+    } else if (stockFilter === 'low-stock') {
+      query = query.lt('stock', 5).gt('stock', 0);
+    } else if (stockFilter === 'out-of-stock') {
+      query = query.eq('in_stock', false);
+    }
+    
+    const { data } = await query.order('created_at', { ascending: false });
     setProducts((data as Product[]) || []);
     setLoading(false);
   };
 
   const deleteProduct = async (id: number, name: string) => {
-    if (confirm(`Delete ${name}?`)) {
-      await supabase.from('products').delete().eq('id', id);
+    if (!confirm(`Are you sure you want to delete ${name}?`)) return;
+    const { error } = await supabase.from('products').delete().eq('id', id);
+    if (!error) {
       fetchProducts();
     }
   };
@@ -58,180 +65,174 @@ export default function AdminProductsPage() {
     fetchProducts();
   };
 
-  const filteredProducts = products.filter((p: Product) =>
+  // Get unique categories
+  const categories = ['all', ...new Set(products.map(p => p.category))];
+
+  const filteredProducts = products.filter(p => 
     p.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const stats = {
     total: products.length,
-    inStock: products.filter((p: Product) => p.in_stock).length,
-    outOfStock: products.filter((p: Product) => !p.in_stock).length,
-    featured: products.filter((p: Product) => p.featured).length,
-    totalValue: products.reduce((sum: number, p: Product) => sum + (p.price * p.stock), 0)
+    inStock: products.filter(p => p.in_stock && p.stock > 0).length,
+    lowStock: products.filter(p => p.stock > 0 && p.stock < 5).length,
+    outOfStock: products.filter(p => !p.in_stock || p.stock === 0).length,
+    featured: products.filter(p => p.featured).length
   };
 
   if (loading) return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-48 mb-6"></div>
-          <div className="grid grid-cols-5 gap-4 mb-6">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="h-24 bg-gray-200 rounded"></div>
-            ))}
-          </div>
-          <div className="h-96 bg-gray-200 rounded"></div>
-        </div>
-      </div>
+    <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
+      <p className="animate-pulse text-xl font-semibold">Loading Products...</p>
     </div>
   );
 
-return (
+  return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">🛍️ Products</h1>
-            <p className="text-gray-600">Manage your pawshop inventory</p>
+            <p className="text-gray-600 text-sm mt-1">Manage your pawshop inventory</p>
           </div>
-          
-          {/* FIXED BUTTON - High visibility blue */}
-          <Link
-            href="/admin/products/new"
+          <Link 
+            href="/admin/products/new" 
             className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2.5 rounded-lg flex items-center gap-2 shadow-md transition-all transform hover:scale-105"
           >
-            <span className="text-lg">➕</span> 
-            <span>Add Product</span>
+            <span>➕</span> <span>Add Product</span>
           </Link>
         </div>
-        
-        {/* Rest of your products page... */}
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-          <div className="bg-white p-4 rounded-lg shadow">
-            <p className="text-sm text-gray-500">Total Products</p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+          <div className="bg-white p-4 rounded-lg shadow-sm text-center">
+            <p className="text-xs text-gray-500">Total</p>
             <p className="text-2xl font-bold">{stats.total}</p>
           </div>
-          <div className="bg-white p-4 rounded-lg shadow border-l-4 border-green-500">
-            <p className="text-sm text-gray-500">In Stock</p>
+          <div className="bg-white p-4 rounded-lg shadow-sm text-center border-l-4 border-green-500">
+            <p className="text-xs text-gray-500">In Stock</p>
             <p className="text-2xl font-bold text-green-600">{stats.inStock}</p>
           </div>
-          <div className="bg-white p-4 rounded-lg shadow border-l-4 border-red-500">
-            <p className="text-sm text-gray-500">Out of Stock</p>
+          <div className="bg-white p-4 rounded-lg shadow-sm text-center border-l-4 border-yellow-500">
+            <p className="text-xs text-gray-500">Low Stock</p>
+            <p className="text-2xl font-bold text-yellow-600">{stats.lowStock}</p>
+          </div>
+          <div className="bg-white p-4 rounded-lg shadow-sm text-center border-l-4 border-red-500">
+            <p className="text-xs text-gray-500">Out of Stock</p>
             <p className="text-2xl font-bold text-red-600">{stats.outOfStock}</p>
           </div>
-          <div className="bg-white p-4 rounded-lg shadow border-l-4 border-yellow-500">
-            <p className="text-sm text-gray-500">Featured</p>
-            <p className="text-2xl font-bold text-yellow-600">{stats.featured}</p>
-          </div>
-          <div className="bg-white p-4 rounded-lg shadow border-l-4 border-blue-500">
-            <p className="text-sm text-gray-500">Inventory Value</p>
-            <p className="text-2xl font-bold text-blue-600">₦{stats.totalValue.toLocaleString()}</p>
-          </div>
         </div>
 
-        {/* Search */}
-        <div className="bg-white p-4 rounded-lg shadow mb-6">
-          <input
-            type="text"
-            placeholder="Search products..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full p-2 border rounded"
+        {/* Filters */}
+        <div className="bg-white p-4 rounded-lg shadow-sm mb-6 grid md:grid-cols-4 gap-3">
+          <input 
+            type="text" 
+            placeholder="Search products..." 
+            value={searchTerm} 
+            onChange={(e) => setSearchTerm(e.target.value)} 
+            className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none md:col-span-2" 
           />
+          <select 
+            value={categoryFilter} 
+            onChange={(e) => setCategoryFilter(e.target.value)} 
+            className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+          >
+            <option value="all">All Categories</option>
+            {categories.filter(c => c !== 'all').map(cat => (
+              <option key={cat} value={cat}>{cat}</option>
+            ))}
+          </select>
+          <select 
+            value={stockFilter} 
+            onChange={(e) => setStockFilter(e.target.value)} 
+            className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+          >
+            <option value="all">All Stock</option>
+            <option value="in-stock">In Stock</option>
+            <option value="low-stock">Low Stock</option>
+            <option value="out-of-stock">Out of Stock</option>
+          </select>
         </div>
 
-        {/* Products Table */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        {/* Products Table - Mobile Scroll */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
+            <table className="w-full min-w-[900px]">
+              <thead className="bg-gray-50 border-b">
                 <tr>
-                  <th className="p-3 text-left">Image</th>
-                  <th className="p-3 text-left">Name</th>
-                  <th className="p-3 text-left">Category</th>
-                  <th className="p-3 text-left">Price</th>
-                  <th className="p-3 text-left">Cost</th>
-                  <th className="p-3 text-left">Profit</th>
-                  <th className="p-3 text-left">Stock</th>
-                  <th className="p-3 text-left">Status</th>
-                  <th className="p-3 text-left">Actions</th>
+                  <th className="p-4 text-left text-sm font-semibold text-gray-600">Image</th>
+                  <th className="p-4 text-left text-sm font-semibold text-gray-600">Name</th>
+                  <th className="p-4 text-left text-sm font-semibold text-gray-600">Category</th>
+                  <th className="p-4 text-left text-sm font-semibold text-gray-600">Price</th>
+                  <th className="p-4 text-left text-sm font-semibold text-gray-600">Stock</th>
+                  <th className="p-4 text-left text-sm font-semibold text-gray-600">Status</th>
+                  <th className="p-4 text-left text-sm font-semibold text-gray-600">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredProducts.map((product: Product) => {
-                  const profit = product.price - (product.cost || 0);
-                  const margin = product.cost ? ((profit / product.price) * 100).toFixed(0) : 0;
-                  
-                  return (
-                    <tr key={product.id} className="border-t hover:bg-gray-50">
-                      <td className="p-2">
-                        <div className="w-12 h-12 bg-gray-200 rounded overflow-hidden">
-                          {product.images?.[0] ? (
-                            <Image 
-                              src={product.images[0]} 
-                              alt={product.name} 
-                              width={48} 
-                              height={48} 
-                              className="object-cover w-full h-full"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-2xl">🛍️</div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="p-3 font-medium">
-                        {product.name}
-                        {product.featured && <span className="ml-2 text-yellow-500">⭐</span>}
-                      </td>
-                      <td className="p-3">{product.category}</td>
-                      <td className="p-3">₦{product.price.toLocaleString()}</td>
-                      <td className="p-3">{product.cost ? `₦${product.cost.toLocaleString()}` : '-'}</td>
-                      <td className="p-3">
-                        <span className={profit > 0 ? 'text-green-600' : 'text-red-600'}>
-                          ₦{profit.toLocaleString()} ({margin}%)
-                        </span>
-                      </td>
-                      <td className="p-3">
-                        <span className={product.stock > 5 ? 'text-green-600' : product.stock > 0 ? 'text-yellow-600' : 'text-red-600'}>
-                          {product.stock}
-                        </span>
-                      </td>
-                      <td className="p-3">
-                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                          product.in_stock ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                        }`}>
-                          {product.in_stock ? 'In Stock' : 'Out of Stock'}
-                        </span>
-                      </td>
-                      <td className="p-3">
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => toggleFeatured(product.id, product.featured || false)}
-                            className="text-yellow-600 hover:text-yellow-700"
-                            title={product.featured ? 'Remove featured' : 'Mark featured'}
-                          >
-                            ⭐
-                          </button>
-                          <Link href={`/admin/products/edit/${product.id}`} className="text-blue-600 hover:underline">Edit</Link>
-                          <button onClick={() => deleteProduct(product.id, product.name)} className="text-red-600 hover:underline">Delete</button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {filteredProducts.map((product) => (
+                  <tr key={product.id} className="border-b hover:bg-gray-50 transition">
+                    <td className="p-4">
+                      <div className="w-10 h-10 bg-gray-100 rounded-lg overflow-hidden relative">
+                        {product.images?.[0] ? (
+                          <Image src={product.images[0]} alt={product.name} fill className="object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-lg">🛍️</div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="p-4 font-medium text-gray-900">
+                      {product.name}
+                      {product.featured && <span className="ml-2 text-yellow-500 text-xs">⭐</span>}
+                    </td>
+                    <td className="p-4 text-gray-700">{product.category}</td>
+                    <td className="p-4 font-medium text-gray-900">₦{product.price.toLocaleString()}</td>
+                    <td className="p-4">
+                      <span className={`font-medium ${
+                        product.stock > 5 ? 'text-green-600' : 
+                        product.stock > 0 ? 'text-yellow-600' : 'text-red-600'
+                      }`}>
+                        {product.stock}
+                      </span>
+                    </td>
+                    <td className="p-4">
+                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                        product.in_stock ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                      }`}>
+                        {product.in_stock ? 'In Stock' : 'Out of Stock'}
+                      </span>
+                    </td>
+                    <td className="p-4">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => toggleFeatured(product.id, product.featured)}
+                          className={`text-xs font-medium ${product.featured ? 'text-yellow-600' : 'text-gray-400'}`}
+                          title={product.featured ? 'Remove featured' : 'Mark featured'}
+                        >
+                          ⭐
+                        </button>
+                        <Link 
+                          href={`/admin/products/edit/${product.id}`} 
+                          className="text-blue-600 hover:underline text-xs font-medium"
+                        >
+                          Edit
+                        </Link>
+                        <button 
+                          onClick={() => deleteProduct(product.id, product.name)} 
+                          className="text-red-600 hover:underline text-xs font-medium"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
-
           {filteredProducts.length === 0 && (
-            <div className="text-center py-12">
-              <p className="text-gray-500 text-lg">No products found</p>
-              <Link href="/admin/products/new" className="text-blue-600 hover:underline mt-2 block">
-                Add your first product
-              </Link>
+            <div className="p-12 text-center text-gray-500">
+              <p className="text-lg">No products found</p>
             </div>
           )}
         </div>

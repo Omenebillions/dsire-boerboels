@@ -212,21 +212,21 @@ export default function DebtorsPage() {
         </div>
 
         {/* Debts Table */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="p-3 text-left">Customer</th>
-                  <th className="p-3 text-left">Invoice</th>
-                  <th className="p-3 text-left">Description</th>
-                  <th className="p-3 text-right">Original</th>
-                  <th className="p-3 text-right">Remaining</th>
-                  <th className="p-3 text-left">Due Date</th>
-                  <th className="p-3 text-left">Status</th>
-                  <th className="p-3 text-left">Actions</th>
-                </tr>
-              </thead>
+       <div className="bg-white rounded-lg shadow overflow-hidden">
+  <div className="overflow-x-auto"> {/* ← Add this wrapper */}
+    <table className="w-full min-w-[1100px]"> {/* ← Add min-width */}
+      <thead className="bg-gray-50">
+        <tr>
+          <th className="p-3 text-left">Customer</th>
+          <th className="p-3 text-left">Invoice</th>
+          <th className="p-3 text-left">Description</th>
+          <th className="p-3 text-right">Original</th>
+          <th className="p-3 text-right">Remaining</th>
+          <th className="p-3 text-left">Due Date</th>
+          <th className="p-3 text-left">Status</th>
+          <th className="p-3 text-left">Actions</th>
+        </tr>
+      </thead>
               <tbody>
                 {debts
                   .filter(debt => 

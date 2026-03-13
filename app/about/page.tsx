@@ -8,7 +8,7 @@ export default function AboutPage() {
       {/* Hero Section with Image */}
       <div className="relative h-[50vh] md:h-[60vh] w-full overflow-hidden">
         <Image
-          src="https://images.unsplash.com/photo-1544568100-847a948585b9?q=80&w=1974&auto=format&fit=crop"
+          src="/about.png"
           alt="Majestic Boerboel dog"
           fill
           className="object-cover"
@@ -37,7 +37,7 @@ export default function AboutPage() {
             </div>
             
             <p className="text-gray-700 leading-relaxed mb-6">
-              <span className="text-2xl font-bold text-gray-900">Dsire Boerboel Kennel</span> is built on passion, dedication, and deep respect for the noble Boerboel breed. We are committed to raising powerful, stable, and loyal guardians that are not only protectors but true family companions.
+              <span className="text-2xl font-bold text-gray-900">Dsire Kennel</span> is built on passion, dedication, and deep respect for the noble Boerboel breed. We are committed to raising powerful, stable, and loyal guardians that are not only protectors but true family companions.
             </p>
             
             <p className="text-gray-700 leading-relaxed mb-6">
@@ -99,22 +99,23 @@ export default function AboutPage() {
             </div>
 
             {/* CTA Buttons */}
-            <div className="flex gap-3">
-              <Link 
-                href="/contact" 
-                className="flex-1 bg-black text-white text-center py-3 rounded-lg font-bold hover:bg-gray-800 transition shadow-md"
-              >
-                Contact Us
-              </Link>
-              <a 
-                href={`https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '2347019996837'}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 bg-green-600 text-white text-center py-3 rounded-lg font-bold hover:bg-green-700 transition shadow-md"
-              >
-                WhatsApp
-              </a>
-            </div>
+           {/* CTA Buttons */}
+<div className="flex gap-3">
+  <Link 
+    href="/contact" 
+    className="flex-1 bg-gray-900 text-white text-center py-4 rounded-xl font-bold hover:bg-yellow-600 hover:text-black transition-all shadow-lg border-2 border-gray-900"
+  >
+    Contact Us
+  </Link>
+  <a 
+    href={`https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '2347019996837'}`}
+    target="_blank"
+    rel="noopener noreferrer"
+    className="flex-1 bg-green-600 text-white text-center py-4 rounded-xl font-bold hover:bg-green-700 transition-all shadow-lg flex items-center justify-center gap-2"
+  >
+    <span>💬</span> WhatsApp
+  </a>
+</div>
           </div>
         </div>
 

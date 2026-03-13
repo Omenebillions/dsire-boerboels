@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 interface Expense {
   id: number;
@@ -14,6 +15,7 @@ interface Expense {
 }
 
 export default function AdminExpensesPage() {
+  const router = useRouter();
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
@@ -46,6 +48,19 @@ export default function AdminExpensesPage() {
     const { data } = await query.order('date', { ascending: false });
     setExpenses((data as Expense[]) || []);
     setLoading(false);
+  };
+
+  const deleteExpense = async (id: number, description: string) => {
+    if (!confirm(`Are you sure you want to delete "${description}"?`)) return;
+    
+    const { error } = await supabase.from('expenses').delete().eq('id', id);
+    
+    if (!error) {
+      alert('Expense deleted successfully!');
+      fetchExpenses();
+    } else {
+      alert('Error deleting expense: ' + error.message);
+    }
   };
 
   const totalExpenses = expenses.reduce((sum, exp) => sum + Number(exp.amount), 0);
@@ -85,13 +100,13 @@ export default function AdminExpensesPage() {
             >
               Export CSV
             </button>
-          <Link 
-    href="/admin/expenses/new" 
-    className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-xs transition-all shadow-lg flex items-center gap-2 transform hover:scale-105 uppercase tracking-widest"
-  >
-    <span className="text-base">➕</span>
-    New Expense
-  </Link>
+            <Link 
+              href="/admin/expenses/new" 
+              className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-xs transition-all shadow-lg flex items-center gap-2 transform hover:scale-105 uppercase tracking-widest"
+            >
+              <span className="text-base">➕</span>
+              New Expense
+            </Link>
           </div>
         </header>
 
@@ -163,48 +178,67 @@ export default function AdminExpensesPage() {
 
         {/* LEDGER TABLE */}
         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="bg-slate-50/50 border-b border-slate-100">
-                <th className="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
-                <th className="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Description</th>
-                <th className="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Category</th>
-                <th className="p-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Amount</th>
-                <th className="p-5 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">Proof</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {expenses.map((exp) => {
-                const catInfo = categories.find(c => c.value === exp.category) || categories[7];
-                return (
-                  <tr key={exp.id} className="hover:bg-slate-50/50 transition-colors group">
-                    <td className="p-5 text-sm font-bold text-slate-600">
-                      {new Date(exp.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
-                    </td>
-                    <td className="p-5">
-                      <p className="text-sm font-black text-slate-800">{exp.description}</p>
-                      {exp.notes && <p className="text-[10px] text-slate-400 font-medium italic">{exp.notes}</p>}
-                    </td>
-                    <td className="p-5">
-                      <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase border ${catInfo.color}`}>
-                        {catInfo.label}
-                      </span>
-                    </td>
-                    <td className="p-5 text-right font-black text-rose-600">
-                      ₦{exp.amount.toLocaleString()}
-                    </td>
-                    <td className="p-5 text-center">
-                      {exp.receipt_url ? (
-                        <a href={exp.receipt_url} target="_blank" className="text-indigo-600 hover:text-indigo-800 text-xs font-black underline underline-offset-4">VIEW</a>
-                      ) : (
-                        <span className="text-slate-300 text-[10px] font-bold">N/A</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1000px] text-left">
+              <thead>
+                <tr className="bg-slate-50/50 border-b border-slate-100">
+                  <th className="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
+                  <th className="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Description</th>
+                  <th className="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Category</th>
+                  <th className="p-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Amount</th>
+                  <th className="p-5 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">Proof</th>
+                  <th className="p-5 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {expenses.map((exp) => {
+                  const catInfo = categories.find(c => c.value === exp.category) || categories[7];
+                  return (
+                    <tr key={exp.id} className="hover:bg-slate-50/50 transition-colors group">
+                      <td className="p-5 text-sm font-bold text-slate-600">
+                        {new Date(exp.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                      </td>
+                      <td className="p-5">
+                        <p className="text-sm font-black text-slate-800">{exp.description}</p>
+                        {exp.notes && <p className="text-[10px] text-slate-400 font-medium italic">{exp.notes}</p>}
+                      </td>
+                      <td className="p-5">
+                        <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase border ${catInfo.color}`}>
+                          {catInfo.label}
+                        </span>
+                      </td>
+                      <td className="p-5 text-right font-black text-rose-600">
+                        ₦{exp.amount.toLocaleString()}
+                      </td>
+                      <td className="p-5 text-center">
+                        {exp.receipt_url ? (
+                          <a href={exp.receipt_url} target="_blank" className="text-indigo-600 hover:text-indigo-800 text-xs font-black underline underline-offset-4">VIEW</a>
+                        ) : (
+                          <span className="text-slate-300 text-[10px] font-bold">N/A</span>
+                        )}
+                      </td>
+                      <td className="p-5 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <Link
+                            href={`/admin/expenses/edit/${exp.id}`}
+                            className="text-blue-600 hover:text-blue-800 text-xs font-black px-2 py-1 rounded hover:bg-blue-50 transition"
+                          >
+                            ✏️
+                          </Link>
+                          <button
+                            onClick={() => deleteExpense(exp.id, exp.description)}
+                            className="text-red-600 hover:text-red-800 text-xs font-black px-2 py-1 rounded hover:bg-red-50 transition"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
           {expenses.length === 0 && (
             <div className="p-20 text-center">
               <p className="text-slate-300 font-black tracking-widest">NO RECORDS FOR THIS PERIOD</p>

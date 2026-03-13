@@ -67,7 +67,6 @@ export default function AdminDogsPage() {
       const today = new Date().toISOString().split('T')[0];
       const DEPOSIT = 100000;
 
-      // --- RESERVED: record deposit ---
       if (newStatus === 'reserved') {
         await supabase.from('sales').insert([{
           item_type: 'dog',
@@ -84,14 +83,11 @@ export default function AdminDogsPage() {
         alert(`✅ ${dog.name} marked as RESERVED. ₦100,000 deposit recorded.`);
       }
       
-      // --- SOLD: record only the remaining balance ---
       if (newStatus === 'sold') {
-        // If dog was previously reserved, subtract deposit; otherwise full price.
         const finalAmount = dog.status === 'reserved' 
           ? (dog.price || 0) - DEPOSIT 
           : (dog.price || 0);
 
-        // Only insert a sale if there is an amount (even zero, though unlikely)
         if (finalAmount > 0) {
           await supabase.from('sales').insert([{
             item_type: 'dog',
@@ -106,9 +102,6 @@ export default function AdminDogsPage() {
               ? `Final payment for ${dog.name} (balance after deposit)`
               : `Full sale for ${dog.name}`
           }]);
-        } else if (finalAmount === 0 && dog.status === 'reserved') {
-          // If price exactly equals deposit (unlikely but handle)
-          // No additional sale needed, but you might want a zero‑value record? Skip.
         }
         
         alert(`✅ ${dog.name} marked as SOLD. Final payment recorded.`);
@@ -236,80 +229,82 @@ export default function AdminDogsPage() {
         </div>
 
         {/* Dogs Table */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b">
-              <tr>
-                <th className="p-4 text-left text-sm font-semibold text-gray-600">Dog</th>
-                <th className="p-4 text-left text-sm font-semibold text-gray-600">Type</th>
-                <th className="p-4 text-left text-sm font-semibold text-gray-600">Status</th>
-                <th className="p-4 text-left text-sm font-semibold text-gray-600">Price</th>
-                <th className="p-4 text-left text-sm font-semibold text-gray-600">Details</th>
-                <th className="p-4 text-left text-sm font-semibold text-gray-600">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredDogs.map((dog) => (
-                <tr key={dog.id} className="border-b hover:bg-gray-50 transition">
-                  <td className="p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gray-100 overflow-hidden relative flex-shrink-0">
-                        {dog.images?.[0] ? (
-                          <Image src={dog.images[0]} alt={dog.name} fill className="object-cover" />
-                        ) : (
-                          <div className="flex items-center justify-center h-full w-full text-lg">
-                            {getTypeIcon(dog.type)}
-                          </div>
-                        )}
-                      </div>
-                      <span className="font-medium text-gray-900">{dog.name}</span>
-                      {dog.featured && <span className="text-yellow-500 text-xs">⭐</span>}
-                    </div>
-                  </td>
-                  <td className="p-4">
-                    <span className="capitalize text-gray-700">{dog.type}</span>
-                  </td>
-                  <td className="p-4">
-                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${getStatusBadgeColor(dog.status)}`}>
-                      {dog.status}
-                    </span>
-                  </td>
-                  <td className="p-4 font-medium text-gray-900">
-                    {dog.price ? `₦${dog.price.toLocaleString()}` : '-'}
-                  </td>
-                  <td className="p-4 text-sm text-gray-500">
-                    {dog.color && <span className="mr-2">🎨 {dog.color}</span>}
-                    {dog.age && <span>📅 {dog.age}</span>}
-                  </td>
-                  <td className="p-4">
-                    <div className="flex flex-col gap-2">
-                      <select 
-                        value={dog.status} 
-                        onChange={(e) => updateStatus(dog.id, e.target.value)}
-                        className="text-xs border rounded-lg p-1.5 focus:ring-1 focus:ring-blue-500"
-                      >
-                        <option value="available">✅ Available</option>
-                        <option value="reserved">⏳ Reserved</option>
-                        <option value="sold">💰 Sold</option>
-                        <option value="retired">👴 Retired</option>
-                      </select>
-                      <div className="flex gap-3 text-xs">
-                        <Link href={`/admin/dogs/edit/${dog.id}`} className="text-blue-600 hover:text-blue-800 font-medium">
-                          Edit
-                        </Link>
-                        <button 
-                          onClick={() => deleteDog(dog.id, dog.name)} 
-                          className="text-red-600 hover:text-red-800 font-medium"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  </td>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1000px]">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th className="p-4 text-left text-sm font-semibold text-gray-600">Dog</th>
+                  <th className="p-4 text-left text-sm font-semibold text-gray-600">Type</th>
+                  <th className="p-4 text-left text-sm font-semibold text-gray-600">Status</th>
+                  <th className="p-4 text-left text-sm font-semibold text-gray-600">Price</th>
+                  <th className="p-4 text-left text-sm font-semibold text-gray-600">Details</th>
+                  <th className="p-4 text-left text-sm font-semibold text-gray-600">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filteredDogs.map((dog) => (
+                  <tr key={dog.id} className="border-b hover:bg-gray-50 transition">
+                    <td className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-gray-100 overflow-hidden relative flex-shrink-0">
+                          {dog.images?.[0] ? (
+                            <Image src={dog.images[0]} alt={dog.name} fill className="object-cover" />
+                          ) : (
+                            <div className="flex items-center justify-center h-full w-full text-lg">
+                              {getTypeIcon(dog.type)}
+                            </div>
+                          )}
+                        </div>
+                        <span className="font-medium text-gray-900">{dog.name}</span>
+                        {dog.featured && <span className="text-yellow-500 text-xs">⭐</span>}
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <span className="capitalize text-gray-700">{dog.type}</span>
+                    </td>
+                    <td className="p-4">
+                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${getStatusBadgeColor(dog.status)}`}>
+                        {dog.status}
+                      </span>
+                    </td>
+                    <td className="p-4 font-medium text-gray-900">
+                      {dog.price ? `₦${dog.price.toLocaleString()}` : '-'}
+                    </td>
+                    <td className="p-4 text-sm text-gray-500">
+                      {dog.color && <span className="mr-2">🎨 {dog.color}</span>}
+                      {dog.age && <span>📅 {dog.age}</span>}
+                    </td>
+                    <td className="p-4">
+                      <div className="flex flex-col gap-2">
+                        <select 
+                          value={dog.status} 
+                          onChange={(e) => updateStatus(dog.id, e.target.value)}
+                          className="text-xs border rounded-lg p-1.5 focus:ring-1 focus:ring-blue-500"
+                        >
+                          <option value="available">✅ Available</option>
+                          <option value="reserved">⏳ Reserved</option>
+                          <option value="sold">💰 Sold</option>
+                          <option value="retired">👴 Retired</option>
+                        </select>
+                        <div className="flex gap-3 text-xs">
+                          <Link href={`/admin/dogs/edit/${dog.id}`} className="text-blue-600 hover:text-blue-800 font-medium">
+                            Edit
+                          </Link>
+                          <button 
+                            onClick={() => deleteDog(dog.id, dog.name)} 
+                            className="text-red-600 hover:text-red-800 font-medium"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           {filteredDogs.length === 0 && (
             <div className="p-12 text-center text-gray-500">
               <p className="text-lg">No dogs found</p>
