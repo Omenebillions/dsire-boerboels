@@ -47,7 +47,7 @@ export default function AdminLogin() {
       }));
 
       // Redirect to dashboard
-      router.push('/admin/dogs');
+      router.push('/admin/dashboard');
 
     } catch (err: any) {
       setError(err.message || 'Invalid login credentials');

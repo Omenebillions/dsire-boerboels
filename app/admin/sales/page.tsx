@@ -3,34 +3,32 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 
-// --- INTERFACES ---
 interface Sale {
   id: number;
-  item_type: string;
-  item_id: number;
+  source: 'dog_reserve' | 'dog_sold' | 'shop_order' | 'manual_sale';
+  item_type?: string;
+  item_id?: number;
   item_name?: string;
   customer_name: string;
   customer_email?: string;
   customer_phone?: string;
-  quantity: number;
   price: number;
   cost?: number;
   profit?: number;
   payment_method?: string;
   payment_status: string;
-  deposit_amount?: number;
-  notes?: string;
   sale_date: string;
   created_at: string;
-  source: 'sales_table' | 'orders_table';
+  notes?: string;
+  // for orders only
   order_reference?: string;
 }
 
 export default function AdminSalesPage() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
-  const [period, setPeriod] = useState('month');
-  const [viewMode, setViewMode] = useState('combined'); 
+  const [period, setPeriod] = useState<'week' | 'month' | 'year' | 'all'>('month');
+  const [sourceFilter, setSourceFilter] = useState<string>('all');
 
   useEffect(() => {
     fetchAllSales();
@@ -38,80 +36,54 @@ export default function AdminSalesPage() {
 
   const fetchAllSales = async () => {
     setLoading(true);
-    
     const now = new Date();
     let startDate: Date | null = null;
-    
     if (period === 'week') {
-      startDate = new Date(now);
-      startDate.setDate(startDate.getDate() - 7);
+      startDate = new Date(now); startDate.setDate(startDate.getDate() - 7);
     } else if (period === 'month') {
-      startDate = new Date(now);
-      startDate.setMonth(startDate.getMonth() - 1);
+      startDate = new Date(now); startDate.setMonth(startDate.getMonth() - 1);
     } else if (period === 'year') {
-      startDate = new Date(now);
-      startDate.setFullYear(startDate.getFullYear() - 1);
+      startDate = new Date(now); startDate.setFullYear(startDate.getFullYear() - 1);
     }
 
     try {
-      // 1. Fetch Products for Cost Lookups (To calculate accurate profit on online orders)
-      const { data: products } = await supabase.from('products').select('id, cost');
-
-      // 2. Fetch Manual Sales
+      // 1. Fetch from sales table (includes dog_reserve, dog_sold, manual_sale)
       let salesQuery = supabase.from('sales').select('*');
-      if (startDate && period !== 'all') {
-        salesQuery = salesQuery.gte('created_at', startDate.toISOString());
-      }
+      if (startDate) salesQuery = salesQuery.gte('created_at', startDate.toISOString());
       const { data: salesData } = await salesQuery.order('created_at', { ascending: false });
 
-      // 3. Fetch Online Orders
-      let ordersQuery = supabase.from('orders').select('*');
-      if (startDate && period !== 'all') {
-        ordersQuery = ordersQuery.gte('created_at', startDate.toISOString());
-      }
+      // 2. Fetch orders that are not yet in sales (pending, completed) – we will join with sales later if needed
+      //    For simplicity, we'll treat orders as separate and combine with sales.
+      //    But we could also insert orders into sales when paid (as we do in orders page).
+      //    Here we assume orders are already in sales with source='shop_order' when paid.
+      //    So we only fetch orders to show pending ones that are not yet in sales.
+      let ordersQuery = supabase.from('orders').select('*').eq('payment_status', 'pending');
+      if (startDate) ordersQuery = ordersQuery.gte('created_at', startDate.toISOString());
       const { data: ordersData } = await ordersQuery.order('created_at', { ascending: false });
 
-      // 4. Transform Orders into Sale format with profit calculation
-      const transformedOrders: Sale[] = (ordersData || []).map((order: any) => {
-        const orderTotal = Number(order.total_amount || 0);
-        
-        // Accurate cost calculation for the order
-        const totalOrderCost = (order.items || []).reduce((sum: number, item: any) => {
-          const product = products?.find(p => p.id === item.product_id);
-          const unitCost = product?.cost || (Number(item.price || 0) * 0.6); // 40% margin fallback
-          return sum + (unitCost * (Number(item.quantity) || 1));
-        }, 0);
+      // Transform orders into a Sale-like structure (pending)
+      const pendingOrders: Sale[] = (ordersData || []).map((o: any) => ({
+        id: o.id,
+        source: 'shop_order',
+        item_name: `Order #${o.order_reference || o.id}`,
+        customer_name: o.customer_name,
+        customer_email: o.customer_email,
+        customer_phone: o.customer_phone,
+        price: Number(o.total_amount || 0),
+        payment_status: 'pending',
+        sale_date: o.created_at,
+        created_at: o.created_at,
+        order_reference: o.order_reference,
+      }));
 
-        return {
-          id: order.id,
-          item_type: 'order',
-          item_id: order.id,
-          item_name: `Order #${order.order_reference}`,
-          order_reference: order.order_reference,
-          customer_name: order.customer_name,
-          customer_email: order.customer_email,
-          customer_phone: order.customer_phone,
-          quantity: order.items?.length || 1,
-          price: orderTotal,
-          cost: totalOrderCost,
-          profit: orderTotal - totalOrderCost,
-          payment_method: order.payment_method,
-          payment_status: order.payment_status?.toLowerCase(),
-          sale_date: order.created_at,
-          created_at: order.created_at,
-          notes: `${order.items?.length || 0} items from PawShop`,
-          source: 'orders_table'
-        };
-      });
-
-      // 5. Combine and Sort
+      // Combine sales (with computed profit) and pending orders
       const combined = [
-        ...(salesData || []).map(s => ({ 
-          ...s, 
-          source: 'sales_table' as const,
-          payment_status: s.payment_status?.toLowerCase() 
-        })),
-        ...transformedOrders
+        ...(salesData || []).map(s => {
+          // profit might already be stored; if not, compute if cost exists
+          const profit = s.profit ?? (s.cost ? Number(s.price) - Number(s.cost) : undefined);
+          return { ...s, profit } as Sale;
+        }),
+        ...pendingOrders
       ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
       setSales(combined);
@@ -122,152 +94,250 @@ export default function AdminSalesPage() {
     }
   };
 
-  const filteredSales = sales.filter(s => {
-    if (viewMode === 'combined') return true;
-    if (viewMode === 'sales') return s.source === 'sales_table';
-    if (viewMode === 'orders') return s.source === 'orders_table';
-    return true;
+  // Filter by source
+  const filteredSales = sourceFilter === 'all'
+    ? sales
+    : sales.filter(s => s.source === sourceFilter);
+
+  // Totals with source breakdown
+  const totals = filteredSales.reduce((acc, s) => {
+    const amt = Number(s.price || 0);
+    const profit = Number(s.profit || 0);
+    const isPaid = s.payment_status === 'paid' || s.payment_status === 'completed';
+    const isPending = s.payment_status === 'pending';
+
+    if (s.source === 'dog_reserve' && isPaid) {
+      acc.deposits += amt;
+      acc.revenue += amt;
+    } else if (s.source === 'dog_sold' && isPaid) {
+      acc.dogSales += amt;
+      acc.revenue += amt;
+      acc.profit += profit;
+    } else if (s.source === 'shop_order' || s.source === 'manual_sale') {
+      if (isPaid) {
+        acc.shopSales += amt;
+        acc.revenue += amt;
+        acc.profit += profit;
+      } else if (isPending) {
+        acc.pending += amt;
+        acc.pendingCount += 1;
+      }
+    }
+    acc.totalCount += 1;
+    return acc;
+  }, {
+    revenue: 0,
+    profit: 0,
+    deposits: 0,
+    dogSales: 0,
+    shopSales: 0,
+    pending: 0,
+    pendingCount: 0,
+    totalCount: 0
   });
-
-  const totals = filteredSales.reduce((acc, sale) => {
-    const isPaid = sale.payment_status === 'paid' || sale.payment_status === 'completed';
-    
-    // Revenue Logic: If not fully paid, only count the deposit
-    const realizedRev = (sale.source === 'sales_table' && !isPaid) 
-      ? Number(sale.deposit_amount || 0) 
-      : Number(sale.price || 0);
-
-    return {
-      revenue: acc.revenue + realizedRev,
-      profit: acc.profit + Number(sale.profit || 0),
-      count: acc.count + 1,
-      pendingCount: acc.pendingCount + (isPaid ? 0 : 1)
-    };
-  }, { revenue: 0, profit: 0, count: 0, pendingCount: 0 });
 
   const getStatusStyle = (status: string) => {
     const s = status?.toLowerCase();
     if (s === 'paid' || s === 'completed') return 'bg-emerald-100 text-emerald-800';
     if (s === 'pending') return 'bg-amber-100 text-amber-800';
-    if (s === 'reserved' || s === 'partial') return 'bg-blue-100 text-blue-800';
+    if (s === 'partial') return 'bg-blue-100 text-blue-800';
     return 'bg-slate-100 text-slate-800';
+  };
+
+  const handleMarkPaid = async (sale: Sale) => {
+    if (sale.source === 'shop_order' && sale.payment_status === 'pending') {
+      // This is an order, we need to insert into sales and update order status.
+      try {
+        // Get full order to fetch items and compute cost
+        const { data: order } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('id', sale.id)
+          .single();
+
+        if (!order) return;
+
+        // Compute profit based on product costs
+        const { data: products } = await supabase.from('products').select('id, cost');
+        let totalCost = 0;
+        (order.items || []).forEach((item: any) => {
+          const prod = products?.find(p => p.id === item.product_id);
+          const cost = prod?.cost || (item.price * 0.6);
+          totalCost += cost * (item.quantity || 1);
+        });
+
+        // Insert into sales
+        await supabase.from('sales').insert([{
+          source: 'shop_order',
+          item_type: 'order',
+          item_id: order.id,
+          item_name: `Order #${order.order_reference}`,
+          customer_name: order.customer_name,
+          customer_email: order.customer_email,
+          customer_phone: order.customer_phone,
+          price: order.total_amount,
+          cost: totalCost,
+          profit: order.total_amount - totalCost,
+          payment_status: 'paid',
+          sale_date: new Date().toISOString().split('T')[0],
+          created_at: new Date().toISOString(),
+          notes: `${order.items?.length || 0} items`
+        }]);
+
+        // Update order status
+        await supabase.from('orders').update({ payment_status: 'paid' }).eq('id', order.id);
+
+        alert('Order marked as paid and added to sales ledger.');
+        fetchAllSales();
+      } catch (err) {
+        console.error(err);
+        alert('Error marking as paid.');
+      }
+    }
+    // For other pending types (e.g., manual sales), you could add similar logic.
   };
 
   if (loading) return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-      <p className="font-black text-slate-400 animate-pulse tracking-widest">SYNCING TRANSACTIONS...</p>
+      <p className="font-black text-slate-400 animate-pulse tracking-widest">LOADING LEDGER...</p>
     </div>
   );
 
- return (
+  return (
     <div className="min-h-screen bg-slate-50 p-6">
       <div className="max-w-7xl mx-auto">
+        {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div>
-            <h1 className="text-3xl font-black text-slate-900">SALES & ORDERS</h1>
-            <p className="text-slate-500 font-medium">Unified ledger for Kennel and PawShop</p>
+            <h1 className="text-3xl font-black text-slate-900">SALES LEDGER</h1>
+            <p className="text-slate-500 font-medium">MBA‑grade profit & loss view</p>
           </div>
-          
-          {/* FIXED BUTTON - Blue primary to match other pages */}
-          <Link 
-            href="/admin/sales/new" 
+          <Link
+            href="/admin/sales/new"
             className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3 rounded-xl flex items-center gap-2 shadow-lg transition-all transform hover:scale-105"
           >
-            <span className="text-lg">➕</span>
-            <span>Record Manual Sale</span>
+            <span className="text-lg">➕</span> Record Manual Sale
           </Link>
         </div>
-        
-        {/* Rest of your sales page... */}
 
-        {/* FILTERS */}
+        {/* Filters */}
         <div className="flex flex-wrap gap-4 mb-8">
           <div className="bg-white p-1 rounded-xl border border-slate-200 flex shadow-sm">
-            {['combined', 'sales', 'orders'].map(m => (
-              <button key={m} onClick={() => setViewMode(m)} className={`px-4 py-2 rounded-lg text-xs font-black transition-all ${viewMode === m ? 'bg-slate-900 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}>
-                {m.toUpperCase()}
+            {['all', 'dog_reserve', 'dog_sold', 'shop_order', 'manual_sale'].map(src => (
+              <button
+                key={src}
+                onClick={() => setSourceFilter(src)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                  sourceFilter === src
+                    ? 'bg-slate-900 text-white shadow-md'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                {src.replace('_', ' ').toUpperCase()}
               </button>
             ))}
           </div>
           <div className="bg-white p-1 rounded-xl border border-slate-200 flex shadow-sm">
             {['week', 'month', 'year', 'all'].map(p => (
-              <button key={p} onClick={() => setPeriod(p)} className={`px-4 py-2 rounded-lg text-xs font-black transition-all ${period === p ? 'bg-slate-900 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}>
+              <button
+                key={p}
+                onClick={() => setPeriod(p as any)}
+                className={`px-4 py-2 rounded-lg text-xs font-black transition-all ${
+                  period === p ? 'bg-slate-900 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'
+                }`}
+              >
                 {p.toUpperCase()}
               </button>
             ))}
           </div>
         </div>
 
-        {/* SUMMARY CARDS */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Realized Revenue</p>
-            <p className="text-2xl font-black text-slate-900">₦{totals.revenue.toLocaleString()}</p>
+            <p className="text-xs font-black text-slate-500 uppercase tracking-wide mb-1">Total Revenue</p>
+            <p className="text-3xl font-black text-slate-900">₦{totals.revenue.toLocaleString()}</p>
           </div>
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Gross Profit</p>
-            <p className="text-2xl font-black text-emerald-600">₦{totals.profit.toLocaleString()}</p>
+            <p className="text-xs font-black text-slate-500 uppercase tracking-wide mb-1">Gross Profit</p>
+            <p className="text-3xl font-black text-emerald-600">₦{totals.profit.toLocaleString()}</p>
           </div>
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Profit Margin</p>
-            <p className="text-2xl font-black text-slate-900">{totals.revenue > 0 ? ((totals.profit / totals.revenue) * 100).toFixed(1) : 0}%</p>
+            <p className="text-xs font-black text-slate-500 uppercase tracking-wide mb-1">Profit Margin</p>
+            <p className="text-3xl font-black text-slate-900">
+              {totals.revenue > 0 ? ((totals.profit / totals.revenue) * 100).toFixed(1) : 0}%
+            </p>
           </div>
-          <div className="bg-amber-50 p-6 rounded-2xl border border-amber-100 shadow-sm">
-            <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-1">Unpaid / Partial</p>
-            <p className="text-2xl font-black text-amber-900">{totals.pendingCount}</p>
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <p className="text-xs font-black text-slate-500 uppercase tracking-wide mb-1">Pending Amount</p>
+            <p className="text-3xl font-black text-amber-600">₦{totals.pending.toLocaleString()}</p>
+          </div>
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <p className="text-xs font-black text-slate-500 uppercase tracking-wide mb-1">Pending Count</p>
+            <p className="text-3xl font-black text-amber-600">{totals.pendingCount}</p>
           </div>
         </div>
 
-        {/* LEDGER TABLE */}
+        {/* Source breakdown (optional) */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8 text-xs font-black">
+          <div className="bg-indigo-50 p-3 rounded-xl text-indigo-700 text-center">🐕 Deposits: ₦{totals.deposits.toLocaleString()}</div>
+          <div className="bg-purple-50 p-3 rounded-xl text-purple-700 text-center">🐕 Final: ₦{totals.dogSales.toLocaleString()}</div>
+          <div className="bg-emerald-50 p-3 rounded-xl text-emerald-700 text-center">🛒 Shop: ₦{totals.shopSales.toLocaleString()}</div>
+        </div>
+
+        {/* Ledger Table */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
-                  <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-tighter">Date</th>
-                  <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-tighter">Item / Order</th>
-                  <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-tighter">Customer</th>
-                  <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-tighter text-right">Amount</th>
-                  <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-tighter">Status</th>
-                  <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-tighter text-center">Source</th>
+                  <th className="p-4 text-xs font-black text-slate-500 uppercase tracking-tighter">Date</th>
+                  <th className="p-4 text-xs font-black text-slate-500 uppercase tracking-tighter">Item / Source</th>
+                  <th className="p-4 text-xs font-black text-slate-500 uppercase tracking-tighter">Customer</th>
+                  <th className="p-4 text-xs font-black text-slate-500 uppercase tracking-tighter text-right">Amount</th>
+                  <th className="p-4 text-xs font-black text-slate-500 uppercase tracking-tighter text-right">Profit</th>
+                  <th className="p-4 text-xs font-black text-slate-500 uppercase tracking-tighter">Status</th>
+                  <th className="p-4 text-xs font-black text-slate-500 uppercase tracking-tighter text-center">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50">
-                {filteredSales.map((sale) => (
-                  <tr key={`${sale.source}-${sale.id}`} className="hover:bg-slate-50 transition-colors group">
-                    <td className="p-4">
-                      <p className="text-sm font-bold text-slate-700">{new Date(sale.created_at).toLocaleDateString()}</p>
-                      <p className="text-[10px] text-slate-400 font-medium italic">{new Date(sale.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+              <tbody className="divide-y divide-slate-100">
+                {filteredSales.map((s) => (
+                  <tr key={`${s.source}-${s.id}`} className="hover:bg-slate-50 transition-colors">
+                    <td className="p-4 text-sm text-slate-700">
+                      {new Date(s.sale_date || s.created_at).toLocaleDateString()}
                     </td>
                     <td className="p-4">
-                      {sale.source === 'orders_table' ? (
-                        <Link href={`/admin/orders/${sale.id}`} className="text-sm font-black text-indigo-600 hover:underline">
-                          #{sale.order_reference}
-                        </Link>
-                      ) : (
-                        <p className="text-sm font-black text-slate-800">{sale.item_name}</p>
-                      )}
-                      <p className="text-[10px] text-slate-500 font-bold uppercase">{sale.item_type}</p>
+                      <div className="font-medium text-slate-900">
+                        {s.item_name || s.source}
+                      </div>
+                      <div className="text-xs text-slate-500 capitalize">{s.source.replace('_', ' ')}</div>
                     </td>
                     <td className="p-4">
-                      <p className="text-sm font-bold text-slate-700">{sale.customer_name}</p>
-                      <p className="text-[10px] text-slate-400 font-medium">{sale.customer_phone || 'N/A'}</p>
+                      <div className="text-sm font-medium text-slate-800">{s.customer_name}</div>
+                      {s.customer_phone && <div className="text-xs text-slate-500">{s.customer_phone}</div>}
                     </td>
-                    <td className="p-4 text-right">
-                      <p className="text-sm font-black text-slate-900">₦{sale.price.toLocaleString()}</p>
-                      {sale.deposit_amount && sale.payment_status !== 'paid' && (
-                        <p className="text-[10px] text-emerald-600 font-bold">Paid: ₦{sale.deposit_amount.toLocaleString()}</p>
-                      )}
+                    <td className="p-4 text-right font-medium">
+                      ₦{s.price.toLocaleString()}
+                    </td>
+                    <td className="p-4 text-right font-medium text-emerald-600">
+                      {s.profit ? `₦${s.profit.toLocaleString()}` : '-'}
                     </td>
                     <td className="p-4">
-                      <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter ${getStatusStyle(sale.payment_status)}`}>
-                        {sale.payment_status}
+                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${getStatusStyle(s.payment_status)}`}>
+                        {s.payment_status}
                       </span>
                     </td>
                     <td className="p-4 text-center">
-                      <span className={`text-[10px] font-black px-2 py-1 rounded-md ${sale.source === 'orders_table' ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-500'}`}>
-                        {sale.source === 'orders_table' ? '🛒 SHOP' : '📝 KENNEL'}
-                      </span>
+                      {s.payment_status === 'pending' && s.source === 'shop_order' ? (
+                        <button
+                          onClick={() => handleMarkPaid(s)}
+                          className="text-xs font-black bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full hover:bg-emerald-200 transition"
+                        >
+                          ✓ Mark Paid
+                        </button>
+                      ) : (
+                        <span className="text-xs text-slate-400">-</span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -275,8 +345,8 @@ export default function AdminSalesPage() {
             </table>
           </div>
           {filteredSales.length === 0 && (
-            <div className="p-20 text-center">
-              <p className="text-slate-400 font-bold tracking-widest">ZERO TRANSACTIONS FOUND</p>
+            <div className="p-16 text-center text-slate-400 font-bold tracking-widest">
+              NO TRANSACTIONS FOUND
             </div>
           )}
         </div>

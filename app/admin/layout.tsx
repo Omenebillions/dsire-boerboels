@@ -1,4 +1,3 @@
-// app/admin/layout.tsx
 "use client";
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
@@ -18,7 +17,6 @@ export default function AdminLayout({
   useEffect(() => {
     checkUser();
     
-    // Subscribe to auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
         router.push('/admin/login');
@@ -41,7 +39,6 @@ export default function AdminLayout({
         return;
       }
 
-      // Check if user is admin
       const { data: adminData } = await supabase
         .from('admin_roles')
         .select('*')
@@ -86,7 +83,6 @@ export default function AdminLayout({
     );
   }
 
-  // Don't show layout on login page
   if (pathname === '/admin/login') {
     return children;
   }
@@ -109,8 +105,6 @@ export default function AdminLayout({
                 <span className="text-sm text-gray-600 hidden md:block">
                   {user?.email}
                 </span>
-                
-                {/* Session Refresh Button */}
                 <button
                   onClick={handleRefreshSession}
                   className="text-xs text-gray-400 hover:text-gray-600 transition"
@@ -120,7 +114,6 @@ export default function AdminLayout({
                 </button>
               </div>
               
-              {/* Password Change Link */}
               <Link
                 href="/admin/password"
                 className="text-sm text-blue-600 hover:text-blue-700 transition flex items-center gap-1"
@@ -145,10 +138,20 @@ export default function AdminLayout({
         </div>
       </header>
 
-      {/* Navigation (unchanged) */}
+      {/* Navigation – updated order, Reports removed */}
       <nav className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex space-x-6 overflow-x-auto py-2">
+            <Link 
+              href="/admin/dashboard" 
+              className={`text-sm font-medium whitespace-nowrap ${
+                pathname.includes('/admin/dashboard') 
+                  ? 'text-blue-600 border-b-2 border-blue-600' 
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              📊 Dashboard
+            </Link>
             <Link 
               href="/admin/dogs" 
               className={`text-sm font-medium whitespace-nowrap ${
@@ -180,6 +183,16 @@ export default function AdminLayout({
               💰 Sales
             </Link>
             <Link 
+              href="/admin/orders" 
+              className={`text-sm font-medium whitespace-nowrap ${
+                pathname.includes('/admin/orders') 
+                  ? 'text-blue-600 border-b-2 border-blue-600' 
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              📦 Orders
+            </Link>
+            <Link 
               href="/admin/debtors" 
               className={`text-sm font-medium whitespace-nowrap ${
                 pathname.includes('/admin/debtors') 
@@ -200,16 +213,6 @@ export default function AdminLayout({
               📝 Expenses
             </Link>
             <Link 
-              href="/admin/reports" 
-              className={`text-sm font-medium whitespace-nowrap ${
-                pathname.includes('/admin/reports') 
-                  ? 'text-blue-600 border-b-2 border-blue-600' 
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              📊 Reports
-            </Link>
-            <Link 
               href="/admin/users" 
               className={`text-sm font-medium whitespace-nowrap ${
                 pathname.includes('/admin/users') 
@@ -218,16 +221,6 @@ export default function AdminLayout({
               }`}
             >
               👥 Users
-            </Link>
-            <Link 
-              href="/admin/orders" 
-              className={`text-sm font-medium whitespace-nowrap ${
-                pathname.includes('/admin/orders') 
-                  ? 'text-blue-600 border-b-2 border-blue-600' 
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              📦 Orders
             </Link>
           </div>
         </div>

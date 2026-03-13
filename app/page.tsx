@@ -19,7 +19,7 @@ export default function Page() {
           </span>
           
           <h1 className="text-5xl md:text-7xl font-bold text-white max-w-4xl leading-tight">
-            Premium Boerboels
+            Premium Kennels
             <span className="block text-yellow-400">Strong • Healthy • Champion Bloodline</span>
           </h1>
           

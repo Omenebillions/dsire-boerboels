@@ -31,7 +31,6 @@ export default function PuppyReservePage() {
   const [submitting, setSubmitting] = useState(false);
   const [reservationComplete, setReservationComplete] = useState(false);
   const [reservationReference] = useState(`RES-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`);
-
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -39,6 +38,12 @@ export default function PuppyReservePage() {
     phone: '',
     notes: ''
   });
+
+  // New: Copy to clipboard function
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    alert("Account number copied to clipboard!");
+  };
 
   useEffect(() => {
     fetchPuppy();
@@ -50,7 +55,7 @@ export default function PuppyReservePage() {
       .select('id, name, price, images, status')
       .eq('id', params.id)
       .single();
-    
+   
     setPuppy(data);
     setLoading(false);
   };
@@ -63,10 +68,10 @@ export default function PuppyReservePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    
+   
     // Simulate a short delay
     await new Promise(resolve => setTimeout(resolve, 500));
-    
+   
     setSubmitting(false);
     setReservationComplete(true);
   };
@@ -95,7 +100,6 @@ export default function PuppyReservePage() {
       `✅ *ACTION REQUIRED:*%0A` +
       `Customer has reserved ${puppy?.name}. Please verify payment and mark as RESERVED in admin panel.%0A` +
       `👉 https://dsire-boerboels.vercel.app/admin/dogs`;
-
     window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${message}`, '_blank');
   };
 
@@ -148,7 +152,7 @@ export default function PuppyReservePage() {
               <h2 className="text-2xl font-bold text-white mb-2">Reservation Created!</h2>
               <p className="text-green-100">Ref: {reservationReference}</p>
             </div>
-            
+           
             <div className="p-6 space-y-6">
               {/* Bank Details */}
               <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
@@ -160,9 +164,18 @@ export default function PuppyReservePage() {
                     <span className="font-medium">Bank:</span>
                     <span>{BANK_DETAILS.bankName}</span>
                   </div>
-                  <div className="flex justify-between p-2 bg-white rounded">
+                  <div className="flex justify-between p-2 bg-white rounded items-center">
                     <span className="font-medium">Account Number:</span>
-                    <span className="font-mono font-bold">{BANK_DETAILS.accountNumber}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono font-bold">{BANK_DETAILS.accountNumber}</span>
+                      <button 
+                        onClick={() => copyToClipboard(BANK_DETAILS.accountNumber)}
+                        className="text-blue-600 hover:text-blue-800 text-sm"
+                        title="Copy account number"
+                      >
+                        📋
+                      </button>
+                    </div>
                   </div>
                   <div className="flex justify-between p-2 bg-white rounded">
                     <span className="font-medium">Account Name:</span>
@@ -185,7 +198,6 @@ export default function PuppyReservePage() {
               >
                 <span>📱</span> I've Made Payment - Send Proof
               </button>
-
               <p className="text-xs text-gray-400 text-center">
                 You'll be redirected to WhatsApp. Please attach your payment receipt.
               </p>

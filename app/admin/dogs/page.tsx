@@ -1,4 +1,3 @@
-// app/admin/dogs/page.tsx
 "use client";
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -66,59 +65,53 @@ export default function AdminDogsPage() {
     
     if (!error) {
       const today = new Date().toISOString().split('T')[0];
-      const DEPOSIT_AMOUNT = 100000;
+      const DEPOSIT = 100000;
 
-      // 1. Logic for RESERVED
+      // --- RESERVED: record deposit ---
       if (newStatus === 'reserved') {
         await supabase.from('sales').insert([{
           item_type: 'dog',
           item_id: id,
           item_name: dog.name,
-          price: DEPOSIT_AMOUNT,
+          price: DEPOSIT,
           customer_name: 'Walk-in Customer',
           payment_status: 'partial',
+          source: 'dog_reserve',
           sale_date: today,
           notes: `Deposit for ${dog.name}`
         }]);
 
-        await supabase.from('financials').insert([{
-          type: 'income',
-          category: 'Reservation Deposit',
-          amount: DEPOSIT_AMOUNT,
-          description: `Deposit: ${dog.name}`,
-          date: today
-        }]);
-        
         alert(`✅ ${dog.name} marked as RESERVED. ₦100,000 deposit recorded.`);
       }
       
-      // 2. Logic for SOLD
+      // --- SOLD: record only the remaining balance ---
       if (newStatus === 'sold') {
-        // Calculate remaining balance if it was already reserved
+        // If dog was previously reserved, subtract deposit; otherwise full price.
         const finalAmount = dog.status === 'reserved' 
-          ? (dog.price || 0) - DEPOSIT_AMOUNT 
+          ? (dog.price || 0) - DEPOSIT 
           : (dog.price || 0);
 
-        await supabase.from('sales').insert([{
-          item_type: 'dog',
-          item_id: id,
-          item_name: dog.name,
-          price: dog.price || 0,
-          customer_name: 'Walk-in Customer',
-          payment_status: 'paid',
-          sale_date: today,
-          notes: `Full sale completed for ${dog.name}`
-        }]);
-
-        await supabase.from('financials').insert([{
-          type: 'income',
-          category: 'Dog Sale',
-          amount: finalAmount,
-          description: `Final payment: ${dog.name} ${dog.status === 'reserved' ? '(Less Deposit)' : ''}`,
-          date: today
-        }]);
+        // Only insert a sale if there is an amount (even zero, though unlikely)
+        if (finalAmount > 0) {
+          await supabase.from('sales').insert([{
+            item_type: 'dog',
+            item_id: id,
+            item_name: dog.name,
+            price: finalAmount,
+            customer_name: 'Walk-in Customer',
+            payment_status: 'paid',
+            source: 'dog_sold',
+            sale_date: today,
+            notes: dog.status === 'reserved' 
+              ? `Final payment for ${dog.name} (balance after deposit)`
+              : `Full sale for ${dog.name}`
+          }]);
+        } else if (finalAmount === 0 && dog.status === 'reserved') {
+          // If price exactly equals deposit (unlikely but handle)
+          // No additional sale needed, but you might want a zero‑value record? Skip.
+        }
         
-        alert(`✅ ${dog.name} marked as SOLD. Full payment recorded.`);
+        alert(`✅ ${dog.name} marked as SOLD. Final payment recorded.`);
       }
       
       fetchDogs();
