@@ -15,7 +15,7 @@ export default function HeroImage() {
   return (
     <div className="absolute inset-0 w-full h-full">
       <Image
-        src="/hero.png"
+        src="/Hero.png"
         alt="Dsire Boerboels - Premium Boerboel Kennel"
         fill
         className="object-cover"

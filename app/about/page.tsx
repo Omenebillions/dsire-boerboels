@@ -13,6 +13,7 @@ export default function AboutPage() {
           fill
           className="object-cover"
           priority
+          sizes="100vw"
         />
         <div className="absolute inset-0 bg-gradient-to-r from-black/70 to-black/30 flex items-center">
           <div className="max-w-7xl mx-auto px-6 text-white">
@@ -101,7 +102,7 @@ export default function AboutPage() {
             <div className="flex gap-3">
               <Link 
                 href="/contact" 
-                className="flex-1 bg-black text-white text-center py-3 rounded-lg font-bold hover:bg-gray-800 transition"
+                className="flex-1 bg-black text-white text-center py-3 rounded-lg font-bold hover:bg-gray-800 transition shadow-md"
               >
                 Contact Us
               </Link>
@@ -109,7 +110,7 @@ export default function AboutPage() {
                 href={`https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '2347019996837'}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex-1 bg-green-600 text-white text-center py-3 rounded-lg font-bold hover:bg-green-700 transition"
+                className="flex-1 bg-green-600 text-white text-center py-3 rounded-lg font-bold hover:bg-green-700 transition shadow-md"
               >
                 WhatsApp
               </a>
