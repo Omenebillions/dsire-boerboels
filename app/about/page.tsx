@@ -99,11 +99,10 @@ export default function AboutPage() {
             </div>
 
             {/* CTA Buttons */}
-           {/* CTA Buttons */}
 <div className="flex gap-3">
   <Link 
     href="/contact" 
-    className="flex-1 bg-gray-900 text-white text-center py-4 rounded-xl font-bold hover:bg-yellow-600 hover:text-black transition-all shadow-lg border-2 border-gray-900"
+    className="flex-1 bg-black text-white text-center py-3 rounded-lg font-bold hover:bg-yellow-600 hover:text-black transition-all shadow-md"
   >
     Contact Us
   </Link>
@@ -111,9 +110,9 @@ export default function AboutPage() {
     href={`https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '2347019996837'}`}
     target="_blank"
     rel="noopener noreferrer"
-    className="flex-1 bg-green-600 text-white text-center py-4 rounded-xl font-bold hover:bg-green-700 transition-all shadow-lg flex items-center justify-center gap-2"
+    className="flex-1 bg-green-600 text-white text-center py-3 rounded-lg font-bold hover:bg-green-700 transition-all shadow-md"
   >
-    <span>💬</span> WhatsApp
+    WhatsApp
   </a>
 </div>
           </div>
