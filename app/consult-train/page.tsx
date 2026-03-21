@@ -176,7 +176,7 @@ export default function ConsultTrainPage() {
                   href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(`Hello, I'm interested in the ${program.title} program. Please provide more information.`)}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block w-full bg-black text-white text-center py-3 rounded-lg font-bold hover:bg-gray-800 transition"
+                  className="block w-full bg-green text-white text-center py-3 rounded-lg font-bold hover:bg-gray-800 transition"
                 >
                   Enquire About {program.title}
                 </Link>
@@ -207,7 +207,7 @@ export default function ConsultTrainPage() {
                     href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(`Hello, I'm interested in the ${program.level} Virtual Training program.`)}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block w-full bg-black text-white text-center py-2 rounded-lg text-sm font-bold hover:bg-gray-800 transition"
+                    className="block w-full bg-green text-white text-center py-2 rounded-lg text-sm font-bold hover:bg-gray-800 transition"
                   >
                     Enquire Now
                   </Link>
