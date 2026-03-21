@@ -302,7 +302,6 @@ export default function PuppiesPage() {
             <li>Deworming treatment</li>
             <li>Health certificate</li>
             <li>Pedigree papers</li>
-            <li>1-year genetic health guarantee</li>
           </ul>
         </div>
       </div>

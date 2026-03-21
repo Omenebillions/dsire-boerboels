@@ -49,6 +49,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <span>📚</span> Consult & Train
             </Link>
             
+            {/* NEW: Shipping */}
+            <Link href="/shipping" className="text-black hover:text-yellow-600 transition font-medium flex items-center gap-1">
+              <span>🚚</span> Shipping
+            </Link>
+            
             <Link href="/gallery" className="text-black hover:text-yellow-600 transition font-medium">
               Gallery
             </Link>

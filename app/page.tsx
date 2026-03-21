@@ -1,9 +1,10 @@
 // app/page.tsx
 import Link from 'next/link';
-import HeroImage from '@/app/components/HeroImage'; // Import the client component
+import HeroImage from '@/app/components/HeroImage';
 import FeaturedPuppies from '@/app/components/FeaturedPuppies';
 import TestimonialCarousel from '@/app/components/TestimonialCarousel';
 import WhyChooseUs from '@/app/components/WhyChooseUs';
+import ImageWithFallback from '@/app/components/ImageWithFallback';
 
 export default function Page() {
   return (
@@ -71,7 +72,7 @@ export default function Page() {
         </div>
       </section>
 
-      {/* Rest of your page remains exactly the same */}
+      {/* Stats Section */}
       <section className="bg-gray-50 py-12 border-y border-gray-200">
         <div className="max-w-7xl mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-6">
           {[
@@ -88,6 +89,7 @@ export default function Page() {
         </div>
       </section>
 
+      {/* Featured Puppies Section */}
       <section className="px-6 py-20 max-w-7xl mx-auto">
         <div className="flex justify-between items-end mb-12">
           <div>
@@ -109,6 +111,7 @@ export default function Page() {
         </div>
       </section>
 
+      {/* Instagram Feed Section */}
       <section id="instagram-feed" className="bg-gray-50 py-20">
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-12">
@@ -139,6 +142,103 @@ export default function Page() {
 
       <WhyChooseUs />
 
+      {/* Our Dogs Section - Fixed with ImageWithFallback */}
+      <section className="py-20 bg-white">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="text-center mb-12">
+            <span className="text-yellow-600 font-semibold tracking-wider text-sm">MEET OUR DOGS</span>
+            <h2 className="text-4xl md:text-5xl font-bold mt-2">Our Females, Studs & Puppies</h2>
+            <p className="text-gray-600 mt-3 text-lg max-w-2xl mx-auto">
+              Get to know the champion bloodlines behind our program and find your perfect companion.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {/* Females Card */}
+            <div className="group relative bg-gray-50 rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300">
+              <div className="bg-gray-200">
+                <ImageWithFallback 
+                  src="/female.png" 
+                  alt="Our Female Boerboels" 
+                  className="w-full h-64 object-cover group-hover:scale-105 transition-transform duration-500"
+                  fallbackSrc="https://via.placeholder.com/600x400?text=Female+Boerboel"
+                />
+              </div>
+              <div className="p-6">
+                <h3 className="text-2xl font-bold mb-2">Our Females</h3>
+                <p className="text-gray-600 mb-4">
+                  Meet our outstanding brood bitches. Healthy, beautiful, and with exceptional pedigrees.
+                </p>
+                <Link 
+                  href="/females" 
+                  className="inline-flex items-center text-yellow-600 font-semibold hover:text-yellow-700 transition-colors"
+                >
+                  View Our Females
+                  <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </Link>
+              </div>
+            </div>
+
+            {/* Studs Card */}
+            <div className="group relative bg-gray-50 rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300">
+              <div className="bg-gray-200">
+                <ImageWithFallback 
+                  src="/stud.png" 
+                  alt="Our Stud Boerboels" 
+                  className="w-full h-64 object-cover group-hover:scale-105 transition-transform duration-500"
+                  fallbackSrc="https://via.placeholder.com/600x400?text=Stud+Boerboel"
+                />
+              </div>
+              <div className="p-6">
+                <h3 className="text-2xl font-bold mb-2">Our Studs</h3>
+                <p className="text-gray-600 mb-4">
+                  Champion sires with proven bloodlines, excellent temperament, and outstanding conformation.
+                </p>
+                <Link 
+                  href="/studs" 
+                  className="inline-flex items-center text-yellow-600 font-semibold hover:text-yellow-700 transition-colors"
+                >
+                  View Our Studs
+                  <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </Link>
+              </div>
+            </div>
+
+            {/* Puppies Card */}
+            <div className="group relative bg-gray-50 rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300">
+              <div className="bg-gray-200">
+                <ImageWithFallback 
+                  src="/puppy.png" 
+                  alt="Our Boerboel Puppies" 
+                  className="w-full h-64 object-cover group-hover:scale-105 transition-transform duration-500"
+                  fallbackSrc="https://via.placeholder.com/600x400?text=Boerboel+Puppies"
+                />
+              </div>
+              <div className="p-6">
+                <h3 className="text-2xl font-bold mb-2">Our Puppies</h3>
+                <p className="text-gray-600 mb-4">
+                  Available and upcoming litters from our champion parents. Find your new family member.
+                </p>
+                <Link 
+                  href="/puppies" 
+                  className="inline-flex items-center text-yellow-600 font-semibold hover:text-yellow-700 transition-colors"
+                >
+                  View Our Puppies
+                  <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Testimonials Section */}
       <section className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-12">
@@ -152,6 +252,7 @@ export default function Page() {
         </div>
       </section>
 
+      {/* CTA Section */}
       <section className="bg-black text-white py-20">
         <div className="max-w-4xl mx-auto text-center px-6">
           <h2 className="text-4xl md:text-5xl font-bold mb-6">Ready to Welcome a Boerboel Home?</h2>
