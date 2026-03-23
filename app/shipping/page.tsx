@@ -16,7 +16,7 @@ export default function ShippingPage() {
             <span className="block text-yellow-400">Bringing Your Puppy Home Safely</span>
           </h1>
           <p className="text-xl text-gray-200 mt-6 max-w-2xl">
-            Worldwide shipping with professional care. We handle everything so your new family member arrives safely.
+            Worldwide shipping with professional care.
           </p>
         </div>
       </section>

@@ -20,7 +20,6 @@ interface Sale {
   sale_date: string;
   created_at: string;
   notes?: string;
-  // for orders only
   order_reference?: string;
 }
 
@@ -39,32 +38,31 @@ export default function AdminSalesPage() {
     const now = new Date();
     let startDate: Date | null = null;
     if (period === 'week') {
-      startDate = new Date(now); startDate.setDate(startDate.getDate() - 7);
+      startDate = new Date(now); 
+      startDate.setDate(startDate.getDate() - 7);
     } else if (period === 'month') {
-      startDate = new Date(now); startDate.setMonth(startDate.getMonth() - 1);
+      startDate = new Date(now); 
+      startDate.setMonth(startDate.getMonth() - 1);
     } else if (period === 'year') {
-      startDate = new Date(now); startDate.setFullYear(startDate.getFullYear() - 1);
+      startDate = new Date(now); 
+      startDate.setFullYear(startDate.getFullYear() - 1);
     }
 
     try {
-      // 1. Fetch from sales table (includes dog_reserve, dog_sold, manual_sale)
+      // Fetch from sales table
       let salesQuery = supabase.from('sales').select('*');
       if (startDate) salesQuery = salesQuery.gte('created_at', startDate.toISOString());
       const { data: salesData } = await salesQuery.order('created_at', { ascending: false });
 
-      // 2. Fetch orders that are not yet in sales (pending, completed) – we will join with sales later if needed
-      //    For simplicity, we'll treat orders as separate and combine with sales.
-      //    But we could also insert orders into sales when paid (as we do in orders page).
-      //    Here we assume orders are already in sales with source='shop_order' when paid.
-      //    So we only fetch orders to show pending ones that are not yet in sales.
+      // Fetch pending orders
       let ordersQuery = supabase.from('orders').select('*').eq('payment_status', 'pending');
       if (startDate) ordersQuery = ordersQuery.gte('created_at', startDate.toISOString());
       const { data: ordersData } = await ordersQuery.order('created_at', { ascending: false });
 
-      // Transform orders into a Sale-like structure (pending)
+      // Transform orders into Sale-like structure
       const pendingOrders: Sale[] = (ordersData || []).map((o: any) => ({
         id: o.id,
-        source: 'shop_order',
+        source: 'shop_order' as const,
         item_name: `Order #${o.order_reference || o.id}`,
         customer_name: o.customer_name,
         customer_email: o.customer_email,
@@ -76,10 +74,9 @@ export default function AdminSalesPage() {
         order_reference: o.order_reference,
       }));
 
-      // Combine sales (with computed profit) and pending orders
+      // Combine sales with profit calculation
       const combined = [
         ...(salesData || []).map(s => {
-          // profit might already be stored; if not, compute if cost exists
           const profit = s.profit ?? (s.cost ? Number(s.price) - Number(s.cost) : undefined);
           return { ...s, profit } as Sale;
         }),
@@ -94,12 +91,10 @@ export default function AdminSalesPage() {
     }
   };
 
-  // Filter by source
   const filteredSales = sourceFilter === 'all'
     ? sales
     : sales.filter(s => s.source === sourceFilter);
 
-  // Totals with source breakdown
   const totals = filteredSales.reduce((acc, s) => {
     const amt = Number(s.price || 0);
     const profit = Number(s.profit || 0);
@@ -146,9 +141,7 @@ export default function AdminSalesPage() {
 
   const handleMarkPaid = async (sale: Sale) => {
     if (sale.source === 'shop_order' && sale.payment_status === 'pending') {
-      // This is an order, we need to insert into sales and update order status.
       try {
-        // Get full order to fetch items and compute cost
         const { data: order } = await supabase
           .from('orders')
           .select('*')
@@ -157,16 +150,20 @@ export default function AdminSalesPage() {
 
         if (!order) return;
 
-        // Compute profit based on product costs
+        // Parse items if it's a string
+        const items = typeof order.items === 'string' 
+          ? JSON.parse(order.items) 
+          : order.items || [];
+
         const { data: products } = await supabase.from('products').select('id, cost');
         let totalCost = 0;
-        (order.items || []).forEach((item: any) => {
+        
+        items.forEach((item: any) => {
           const prod = products?.find(p => p.id === item.product_id);
           const cost = prod?.cost || (item.price * 0.6);
           totalCost += cost * (item.quantity || 1);
         });
 
-        // Insert into sales
         await supabase.from('sales').insert([{
           source: 'shop_order',
           item_type: 'order',
@@ -179,22 +176,21 @@ export default function AdminSalesPage() {
           cost: totalCost,
           profit: order.total_amount - totalCost,
           payment_status: 'paid',
+          payment_method: order.payment_method || 'transfer',
           sale_date: new Date().toISOString().split('T')[0],
           created_at: new Date().toISOString(),
-          notes: `${order.items?.length || 0} items`
+          notes: `${items.length} items`
         }]);
 
-        // Update order status
         await supabase.from('orders').update({ payment_status: 'paid' }).eq('id', order.id);
 
         alert('Order marked as paid and added to sales ledger.');
         fetchAllSales();
       } catch (err) {
         console.error(err);
-        alert('Error marking as paid.');
+        alert('Error marking as paid: ' + (err as Error).message);
       }
     }
-    // For other pending types (e.g., manual sales), you could add similar logic.
   };
 
   if (loading) return (
@@ -278,7 +274,7 @@ export default function AdminSalesPage() {
           </div>
         </div>
 
-        {/* Source breakdown (optional) */}
+        {/* Source breakdown */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8 text-xs font-black">
           <div className="bg-indigo-50 p-3 rounded-xl text-indigo-700 text-center">🐕 Deposits: ₦{totals.deposits.toLocaleString()}</div>
           <div className="bg-purple-50 p-3 rounded-xl text-purple-700 text-center">🐕 Final: ₦{totals.dogSales.toLocaleString()}</div>
@@ -298,7 +294,7 @@ export default function AdminSalesPage() {
                   <th className="p-4 text-xs font-black text-slate-500 uppercase tracking-tighter text-right">Profit</th>
                   <th className="p-4 text-xs font-black text-slate-500 uppercase tracking-tighter">Status</th>
                   <th className="p-4 text-xs font-black text-slate-500 uppercase tracking-tighter text-center">Actions</th>
-                </tr>
+                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredSales.map((s) => (
@@ -320,7 +316,7 @@ export default function AdminSalesPage() {
                       ₦{s.price.toLocaleString()}
                     </td>
                     <td className="p-4 text-right font-medium text-emerald-600">
-                      {s.profit ? `₦${s.profit.toLocaleString()}` : '-'}
+                      {s.profit !== undefined && s.profit !== null ? `₦${s.profit.toLocaleString()}` : '-'}
                     </td>
                     <td className="p-4">
                       <span className={`px-2 py-1 rounded-full text-xs font-bold ${getStatusStyle(s.payment_status)}`}>
