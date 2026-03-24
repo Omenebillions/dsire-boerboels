@@ -1,4 +1,3 @@
-// app/admin/products/new/page.tsx
 "use client";
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -7,10 +6,23 @@ import Link from 'next/link';
 import Image from 'next/image';
 import imageCompression from 'browser-image-compression';
 
+interface Variation {
+  size: string;
+  price: number;
+  compare_price: number;
+  stock: number;
+  sku: string;
+  weight: string;
+}
+
 export default function NewProductPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [hasVariations, setHasVariations] = useState(false);
+  const [variations, setVariations] = useState<Variation[]>([
+    { size: 'Small', price: 0, compare_price: 0, stock: 0, sku: '', weight: '' }
+  ]);
 
   // Form data
   const [formData, setFormData] = useState({
@@ -29,7 +41,7 @@ export default function NewProductPage() {
     images: [] as string[]
   });
 
-  // Multiple image upload state
+  // Image state
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [compressionStats, setCompressionStats] = useState<{ [key: string]: string }>({});
@@ -58,6 +70,24 @@ export default function NewProductPage() {
       delete newStats[fileToRemove.name];
       setCompressionStats(newStats);
     }
+  };
+
+  // Variation handlers
+  const addVariation = () => {
+    setVariations([
+      ...variations,
+      { size: 'Medium', price: 0, compare_price: 0, stock: 0, sku: '', weight: '' }
+    ]);
+  };
+
+  const removeVariation = (index: number) => {
+    setVariations(variations.filter((_, i) => i !== index));
+  };
+
+  const updateVariation = (index: number, field: keyof Variation, value: string | number) => {
+    const updated = [...variations];
+    updated[index] = { ...updated[index], [field]: value };
+    setVariations(updated);
   };
 
   const compressImage = async (file: File): Promise<File> => {
@@ -108,7 +138,6 @@ export default function NewProductPage() {
       for (const file of files) {
         const compressedFile = await compressImage(file);
         
-        // Sanitize filename - remove special characters and spaces
         const fileExt = file.name.split('.').pop();
         const baseName = file.name.split('.').slice(0, -1).join('.');
         const sanitizedName = baseName
@@ -152,6 +181,16 @@ export default function NewProductPage() {
       allImages = [...uploadedUrls, ...allImages];
     }
 
+    // Prepare variations data
+    let variationsData = null;
+    if (hasVariations && variations.length > 0) {
+      // Filter out variations with zero price or empty size
+      const validVariations = variations.filter(v => v.price > 0 && v.size.trim());
+      if (validVariations.length > 0) {
+        variationsData = validVariations;
+      }
+    }
+
     const productData = {
       name: formData.name,
       category: formData.category,
@@ -159,13 +198,14 @@ export default function NewProductPage() {
       cost: formData.cost ? Number(formData.cost) : null,
       compare_price: formData.compare_price ? Number(formData.compare_price) : null,
       description: formData.description || null,
-      stock: formData.stock ? Number(formData.stock) : 0,
-      in_stock: formData.in_stock,
+      stock: hasVariations ? 0 : (formData.stock ? Number(formData.stock) : 0), // Stock 0 if has variations
+      in_stock: hasVariations ? true : formData.in_stock, // If variations exist, product is in stock if any variation has stock
       featured: formData.featured,
       weight: formData.weight || null,
       brand: formData.brand || null,
       sku: formData.sku || `PRD-${Date.now()}`,
       images: allImages,
+      variations: variationsData, // NEW: Store variations as JSON
     };
 
     const { error } = await supabase.from('products').insert([productData]);
@@ -190,7 +230,7 @@ export default function NewProductPage() {
         </div>
         
         <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow space-y-6">
-          {/* Image Upload Section - Same as Dog Upload */}
+          {/* Image Upload Section */}
           <div className="space-y-4">
             <h2 className="text-lg font-semibold border-b pb-2">📸 Product Photos</h2>
             <div>
@@ -205,7 +245,6 @@ export default function NewProductPage() {
               <p className="text-xs text-gray-500 mt-1">Select one or more images for the product.</p>
             </div>
 
-            {/* Compression Stats */}
             {Object.keys(compressionStats).length > 0 && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                 <p className="text-sm font-medium text-blue-800 mb-2">📊 Compression Results:</p>
@@ -217,7 +256,6 @@ export default function NewProductPage() {
               </div>
             )}
 
-            {/* Image Previews */}
             {imagePreviews.length > 0 && (
               <div className="grid grid-cols-4 gap-4 mt-2">
                 {imagePreviews.map((preview, idx) => (
@@ -275,49 +313,174 @@ export default function NewProductPage() {
             </div>
           </div>
 
-          {/* Price Fields */}
-          <div className="grid md:grid-cols-3 gap-4">
-            <div className="space-y-1">
-              <label className="block font-medium text-sm">Selling Price (₦) *</label>
-              <input 
-                type="number" 
-                required 
-                value={formData.price} 
-                onChange={(e) => setFormData({...formData, price: e.target.value})} 
-                className="w-full p-2 border rounded" 
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="block font-medium text-sm">Cost Price (₦)</label>
-              <input 
-                type="number" 
-                value={formData.cost} 
-                onChange={(e) => setFormData({...formData, cost: e.target.value})} 
-                className="w-full p-2 border rounded" 
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="block font-medium text-sm">Compare at Price</label>
-              <input 
-                type="number" 
-                value={formData.compare_price} 
-                onChange={(e) => setFormData({...formData, compare_price: e.target.value})} 
-                className="w-full p-2 border rounded" 
-              />
-            </div>
+          {/* Has Variations Toggle */}
+          <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
+            <input
+              type="checkbox"
+              id="hasVariations"
+              checked={hasVariations}
+              onChange={(e) => {
+                setHasVariations(e.target.checked);
+                if (!e.target.checked) {
+                  setVariations([{ size: 'Small', price: 0, compare_price: 0, stock: 0, sku: '', weight: '' }]);
+                }
+              }}
+              className="w-4 h-4"
+            />
+            <label htmlFor="hasVariations" className="font-medium">
+              📦 This product has size variations (Small, Medium, Large)
+            </label>
           </div>
 
-          {/* Stock & SKU */}
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="block font-medium text-sm">Stock Quantity</label>
-              <input 
-                type="number" 
-                value={formData.stock} 
-                onChange={(e) => setFormData({...formData, stock: e.target.value})} 
-                className="w-full p-2 border rounded" 
-              />
+          {/* Simple Pricing (no variations) */}
+          {!hasVariations && (
+            <>
+              <div className="grid md:grid-cols-3 gap-4">
+                <div className="space-y-1">
+                  <label className="block font-medium text-sm">Selling Price (₦) *</label>
+                  <input 
+                    type="number" 
+                    required 
+                    value={formData.price} 
+                    onChange={(e) => setFormData({...formData, price: e.target.value})} 
+                    className="w-full p-2 border rounded" 
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="block font-medium text-sm">Cost Price (₦)</label>
+                  <input 
+                    type="number" 
+                    value={formData.cost} 
+                    onChange={(e) => setFormData({...formData, cost: e.target.value})} 
+                    className="w-full p-2 border rounded" 
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="block font-medium text-sm">Compare at Price</label>
+                  <input 
+                    type="number" 
+                    value={formData.compare_price} 
+                    onChange={(e) => setFormData({...formData, compare_price: e.target.value})} 
+                    className="w-full p-2 border rounded" 
+                  />
+                </div>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="block font-medium text-sm">Stock Quantity</label>
+                  <input 
+                    type="number" 
+                    value={formData.stock} 
+                    onChange={(e) => setFormData({...formData, stock: e.target.value})} 
+                    className="w-full p-2 border rounded" 
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="block font-medium text-sm">Weight</label>
+                  <input 
+                    type="text" 
+                    value={formData.weight} 
+                    onChange={(e) => setFormData({...formData, weight: e.target.value})} 
+                    className="w-full p-2 border rounded" 
+                    placeholder="e.g. 15kg" 
+                  />
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Size Variations Section */}
+          {hasVariations && (
+            <div className="space-y-4 border border-gray-200 rounded-lg p-4 bg-gray-50">
+              <h3 className="font-bold text-lg">📏 Size Variations</h3>
+              <p className="text-xs text-gray-500 mb-2">Define pricing and stock for each size option</p>
+              
+              {variations.map((variation, index) => (
+                <div key={index} className="border rounded-lg p-4 bg-white">
+                  <div className="flex justify-between items-center mb-3">
+                    <h4 className="font-medium">Variation {index + 1}</h4>
+                    {variations.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeVariation(index)}
+                        className="text-red-500 text-sm hover:text-red-700"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                  
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium mb-1">Size *</label>
+                      <select
+                        value={variation.size}
+                        onChange={(e) => updateVariation(index, 'size', e.target.value)}
+                        className="w-full p-2 border rounded text-sm"
+                      >
+                        <option value="Small">Small</option>
+                        <option value="Medium">Medium</option>
+                        <option value="Large">Large</option>
+                        <option value="X-Large">X-Large</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1">Price (₦) *</label>
+                      <input
+                        type="number"
+                        value={variation.price}
+                        onChange={(e) => updateVariation(index, 'price', Number(e.target.value))}
+                        className="w-full p-2 border rounded text-sm"
+                        placeholder="Price"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1">Stock *</label>
+                      <input
+                        type="number"
+                        value={variation.stock}
+                        onChange={(e) => updateVariation(index, 'stock', Number(e.target.value))}
+                        className="w-full p-2 border rounded text-sm"
+                        placeholder="Quantity"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1">SKU</label>
+                      <input
+                        type="text"
+                        value={variation.sku}
+                        onChange={(e) => updateVariation(index, 'sku', e.target.value)}
+                        className="w-full p-2 border rounded text-sm"
+                        placeholder="Optional"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1">Weight</label>
+                      <input
+                        type="text"
+                        value={variation.weight}
+                        onChange={(e) => updateVariation(index, 'weight', e.target.value)}
+                        className="w-full p-2 border rounded text-sm"
+                        placeholder="e.g. 2kg"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+              
+              <button
+                type="button"
+                onClick={addVariation}
+                className="mt-2 text-blue-600 text-sm font-medium hover:text-blue-800"
+              >
+                + Add Another Size
+              </button>
             </div>
+          )}
+
+          {/* SKU & Brand (visible for both modes) */}
+          <div className="grid md:grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="block font-medium text-sm">SKU</label>
               <input 
@@ -326,20 +489,6 @@ export default function NewProductPage() {
                 onChange={(e) => setFormData({...formData, sku: e.target.value})} 
                 className="w-full p-2 border rounded" 
                 placeholder="Auto-generated if empty" 
-              />
-            </div>
-          </div>
-
-          {/* Weight & Brand */}
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="block font-medium text-sm">Weight</label>
-              <input 
-                type="text" 
-                value={formData.weight} 
-                onChange={(e) => setFormData({...formData, weight: e.target.value})} 
-                className="w-full p-2 border rounded" 
-                placeholder="e.g. 15kg" 
               />
             </div>
             <div className="space-y-1">
@@ -374,8 +523,10 @@ export default function NewProductPage() {
                 checked={formData.in_stock} 
                 onChange={(e) => setFormData({...formData, in_stock: e.target.checked})} 
                 className="w-4 h-4"
+                disabled={hasVariations}
               />
               <span className="font-medium text-sm">In Stock</span>
+              {hasVariations && <span className="text-xs text-gray-500">(Auto-managed by variations)</span>}
             </label>
             <label className="flex items-center gap-2 cursor-pointer">
               <input 

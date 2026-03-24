@@ -5,7 +5,12 @@ import Link from 'next/link';
 import ProductCard from '@/app/components/Shop/ProductCard';
 import { supabase } from '@/lib/supabase';
 
-// Define the Product interface
+interface Variation {
+  size: string;
+  price: number;
+  stock: number;
+}
+
 interface Product {
   id: number;
   name: string;
@@ -16,8 +21,10 @@ interface Product {
   category: string;
   in_stock: boolean;
   featured: boolean;
+  stock: number;
   weight?: string;
   brand?: string;
+  variations?: Variation[];
   created_at?: string;
 }
 
@@ -42,7 +49,6 @@ export default function PawshopPage() {
   const loadProducts = async () => {
     setLoading(true);
     
-    // Fetch all products
     const { data: productsData } = await supabase
       .from('products')
       .select('*')
@@ -50,7 +56,6 @@ export default function PawshopPage() {
     
     setProducts((productsData as Product[]) || []);
     
-    // Get unique categories
     const uniqueCategories = productsData 
       ? ['all', ...new Set(productsData.map((p: any) => p.category))]
       : ['all'];
@@ -59,7 +64,6 @@ export default function PawshopPage() {
     setLoading(false);
   };
 
-  // Load products by category
   useEffect(() => {
     const filterProducts = async () => {
       if (selectedCategory === 'all') {
@@ -84,6 +88,14 @@ export default function PawshopPage() {
     const cart = JSON.parse(localStorage.getItem('cart') || '[]');
     const count = cart.reduce((sum: number, item: any) => sum + item.quantity, 0);
     setCartCount(count);
+  };
+
+  // Helper to check if product has any stock (including variations)
+  const hasStock = (product: Product): boolean => {
+    if (product.variations && product.variations.length > 0) {
+      return product.variations.some(v => v.stock > 0);
+    }
+    return product.in_stock && product.stock > 0;
   };
 
   // Filter by search
@@ -183,9 +195,15 @@ export default function PawshopPage() {
           </div>
         ) : (
           <>
-            <p className="text-sm text-gray-500 mb-4">
-              {filteredProducts.length} products found
-            </p>
+            <div className="flex justify-between items-center mb-4">
+              <p className="text-sm text-gray-500">
+                {filteredProducts.length} products found
+              </p>
+              <p className="text-xs text-gray-400">
+                {filteredProducts.filter(p => p.variations?.length).length} products have size options
+              </p>
+            </div>
+            
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
               {filteredProducts.map((product) => (
                 <ProductCard key={product.id} product={product} />
@@ -196,7 +214,7 @@ export default function PawshopPage() {
             <div className="mt-12 bg-green-50 border border-green-200 rounded-xl p-6 text-center">
               <h3 className="font-bold text-lg mb-2">Need help choosing?</h3>
               <p className="text-gray-600 mb-4">
-                Chat with us on WhatsApp for personalized recommendations.
+                Chat with us on WhatsApp for personalized recommendations or size guidance.
               </p>
               <a
                 href={`https://wa.me/${WHATSAPP_NUMBER}`}
