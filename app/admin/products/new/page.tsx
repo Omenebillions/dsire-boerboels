@@ -1,5 +1,5 @@
 "use client";
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
@@ -17,14 +17,16 @@ interface Variation {
 
 export default function NewProductPage() {
   const router = useRouter();
+  
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+
+  // Core states
   const [hasVariations, setHasVariations] = useState(false);
   const [variations, setVariations] = useState<Variation[]>([
     { size: 'Small', price: 0, compare_price: 0, stock: 0, sku: '', weight: '' }
   ]);
 
-  // Form data
   const [formData, setFormData] = useState({
     name: '',
     price: '',
@@ -41,11 +43,20 @@ export default function NewProductPage() {
     images: [] as string[]
   });
 
-  // Image state
+  // Image states
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [compressionStats, setCompressionStats] = useState<{ [key: string]: string }>({});
 
+  // Auto-update in_stock when variations change
+  useEffect(() => {
+    if (hasVariations) {
+      const anyVariationInStock = variations.some(v => v.stock > 0);
+      setFormData(prev => ({ ...prev, in_stock: anyVariationInStock }));
+    }
+  }, [hasVariations, variations]);
+
+  // Image Handlers
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     
@@ -56,15 +67,15 @@ export default function NewProductPage() {
       };
       reader.readAsDataURL(file);
     });
-    
+
     setImageFiles(prev => [...prev, ...files]);
   };
 
   const removeImage = (index: number) => {
+    const fileToRemove = imageFiles[index];
     setImageFiles(prev => prev.filter((_, i) => i !== index));
     setImagePreviews(prev => prev.filter((_, i) => i !== index));
-    
-    const fileToRemove = imageFiles[index];
+
     if (fileToRemove) {
       const newStats = { ...compressionStats };
       delete newStats[fileToRemove.name];
@@ -72,24 +83,28 @@ export default function NewProductPage() {
     }
   };
 
-  // Variation handlers
+  // Variation Handlers
   const addVariation = () => {
-    setVariations([
-      ...variations,
+    setVariations(prev => [
+      ...prev,
       { size: 'Medium', price: 0, compare_price: 0, stock: 0, sku: '', weight: '' }
     ]);
   };
 
   const removeVariation = (index: number) => {
-    setVariations(variations.filter((_, i) => i !== index));
+    if (variations.length === 1) return; // Prevent removing last variation
+    setVariations(prev => prev.filter((_, i) => i !== index));
   };
 
   const updateVariation = (index: number, field: keyof Variation, value: string | number) => {
-    const updated = [...variations];
-    updated[index] = { ...updated[index], [field]: value };
-    setVariations(updated);
+    setVariations(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
   };
 
+  // Image Compression & Upload
   const compressImage = async (file: File): Promise<File> => {
     const options = {
       maxSizeMB: 1,
@@ -100,8 +115,8 @@ export default function NewProductPage() {
     };
 
     try {
-      const originalSize = file.size / 1024 / 1024;
-      
+      const originalSize = file.size / (1024 * 1024);
+
       if (file.size < 1024 * 1024) {
         setCompressionStats(prev => ({
           ...prev,
@@ -109,22 +124,22 @@ export default function NewProductPage() {
         }));
         return file;
       }
-      
+
       const compressedFile = await imageCompression(file, options);
-      const compressedSize = compressedFile.size / 1024 / 1024;
+      const compressedSize = compressedFile.size / (1024 * 1024);
       const savings = ((originalSize - compressedSize) / originalSize * 100).toFixed(1);
-      
+
       setCompressionStats(prev => ({
         ...prev,
         [file.name]: `✅ ${originalSize.toFixed(2)}MB → ${compressedSize.toFixed(2)}MB (${savings}% saved)`
       }));
-      
+
       return compressedFile;
     } catch (error) {
       console.error('Compression error:', error);
       setCompressionStats(prev => ({
         ...prev,
-        [file.name]: `⚠️ Compression failed, using original`
+        [file.name]: `⚠️ Failed, using original`
       }));
       return file;
     }
@@ -133,18 +148,18 @@ export default function NewProductPage() {
   const uploadImages = async (files: File[]): Promise<string[]> => {
     setUploading(true);
     const uploadedUrls: string[] = [];
-    
+
     try {
       for (const file of files) {
         const compressedFile = await compressImage(file);
         
-        const fileExt = file.name.split('.').pop();
+        const fileExt = file.name.split('.').pop() || 'jpg';
         const baseName = file.name.split('.').slice(0, -1).join('.');
         const sanitizedName = baseName
           .replace(/[^a-zA-Z0-9]/g, '_')
           .replace(/\s+/g, '_')
           .substring(0, 50);
-        
+
         const fileName = `${Date.now()}-${sanitizedName}.${fileExt}`;
         const filePath = `products/${fileName}`;
 
@@ -161,51 +176,54 @@ export default function NewProductPage() {
         uploadedUrls.push(publicUrl);
       }
     } catch (error: any) {
-      console.error('Error uploading images:', error);
-      alert(`Upload failed: ${error.message || 'Unknown error'}`);
+      console.error('Upload error:', error);
+      alert(`Image upload failed: ${error.message || 'Unknown error'}`);
     } finally {
       setUploading(false);
     }
-    
+
     return uploadedUrls;
   };
 
+  // Main Submit Handler
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.name.trim()) {
+      alert("Product name is required");
+      return;
+    }
+
     setLoading(true);
 
     let allImages = [...formData.images];
-    
+
     if (imageFiles.length > 0) {
       const uploadedUrls = await uploadImages(imageFiles);
       allImages = [...uploadedUrls, ...allImages];
     }
 
-    // Prepare variations data
-    let variationsData = null;
-    if (hasVariations && variations.length > 0) {
-      // Filter out variations with zero price or empty size
-      const validVariations = variations.filter(v => v.price > 0 && v.size.trim());
-      if (validVariations.length > 0) {
-        variationsData = validVariations;
-      }
-    }
+    // Prepare variations (filter invalid ones)
+    const validVariations = hasVariations 
+      ? variations.filter(v => v.size.trim() && v.price > 0)
+      : null;
 
     const productData = {
-      name: formData.name,
+      name: formData.name.trim(),
       category: formData.category,
-      price: formData.price ? Number(formData.price) : 0,
+      price: hasVariations ? 0 : (Number(formData.price) || 0),
       cost: formData.cost ? Number(formData.cost) : null,
       compare_price: formData.compare_price ? Number(formData.compare_price) : null,
-      description: formData.description || null,
-      stock: hasVariations ? 0 : (formData.stock ? Number(formData.stock) : 0), // Stock 0 if has variations
-      in_stock: hasVariations ? true : formData.in_stock, // If variations exist, product is in stock if any variation has stock
+      description: formData.description.trim() || null,
+      stock: hasVariations ? 0 : (Number(formData.stock) || 0),
+      in_stock: hasVariations 
+        ? variations.some(v => v.stock > 0) 
+        : formData.in_stock,
       featured: formData.featured,
-      weight: formData.weight || null,
-      brand: formData.brand || null,
-      sku: formData.sku || `PRD-${Date.now()}`,
+      weight: formData.weight.trim() || null,
+      brand: formData.brand.trim() || null,
+      sku: formData.sku.trim() || `PRD-${Date.now()}`,
       images: allImages,
-      variations: variationsData, // NEW: Store variations as JSON
+      variations: validVariations,
     };
 
     const { error } = await supabase.from('products').insert([productData]);
@@ -216,6 +234,7 @@ export default function NewProductPage() {
       alert('Product added successfully!');
       router.push('/admin/products');
     }
+
     setLoading(false);
   };
 
@@ -225,53 +244,52 @@ export default function NewProductPage() {
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold">Add New Product</h1>
           <Link href="/admin/products" className="text-sm text-gray-600 hover:underline">
-            Back to Products
+            ← Back to Products
           </Link>
         </div>
-        
-        <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow space-y-6">
+
+        <form onSubmit={handleSubmit} className="bg-white p-6 rounded-xl shadow space-y-8">
+          
           {/* Image Upload Section */}
           <div className="space-y-4">
             <h2 className="text-lg font-semibold border-b pb-2">📸 Product Photos</h2>
-            <div>
-              <label className="block font-medium mb-1 text-sm text-gray-700">Upload Images</label>
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={handleImageChange}
-                className="w-full p-2 border rounded bg-gray-50"
-              />
-              <p className="text-xs text-gray-500 mt-1">Select one or more images for the product.</p>
-            </div>
+            
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleImageChange}
+              className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50"
+            />
+            <p className="text-xs text-gray-500">You can upload multiple images (max 1MB recommended)</p>
 
             {Object.keys(compressionStats).length > 0 && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <p className="text-sm font-medium text-blue-800 mb-2">📊 Compression Results:</p>
-                {Object.entries(compressionStats).map(([filename, stat]) => (
-                  <p key={filename} className="text-xs text-blue-600 font-mono">
-                    {filename.substring(0, 20)}...: {stat}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
+                <p className="font-medium text-blue-800 mb-1">Compression Results:</p>
+                {Object.entries(compressionStats).map(([name, stat]) => (
+                  <p key={name} className="text-xs font-mono text-blue-700">
+                    {name.substring(0, 25)}... : {stat}
                   </p>
                 ))}
               </div>
             )}
 
             {imagePreviews.length > 0 && (
-              <div className="grid grid-cols-4 gap-4 mt-2">
+              <div className="grid grid-cols-4 gap-4">
                 {imagePreviews.map((preview, idx) => (
-                  <div key={idx} className="relative">
-                    <div className="relative w-full aspect-square border rounded-lg overflow-hidden bg-gray-100">
-                      <Image 
-                        src={preview} 
-                        alt={`Preview ${idx + 1}`} 
-                        fill 
-                        className="object-cover" 
+                  <div key={idx} className="relative group">
+                    <div className="relative aspect-square border rounded-xl overflow-hidden bg-gray-100">
+                      <Image
+                        src={preview}
+                        alt={`Preview ${idx + 1}`}
+                        fill
+                        className="object-cover"
                       />
                     </div>
-                    <button 
-                      type="button" 
-                      onClick={() => removeImage(idx)} 
-                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center shadow-md hover:bg-red-600 transition-colors"
+                    <button
+                      type="button"
+                      onClick={() => removeImage(idx)}
+                      className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white w-7 h-7 rounded-full flex items-center justify-center shadow transition-all"
                     >
                       ✕
                     </button>
@@ -281,27 +299,28 @@ export default function NewProductPage() {
             )}
           </div>
 
-          <hr />
+          <hr className="my-6" />
 
-          {/* Basic Info */}
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="block font-medium">Product Name *</label>
-              <input 
-                type="text" 
-                required 
-                value={formData.name} 
-                onChange={(e) => setFormData({...formData, name: e.target.value})} 
-                className="w-full p-2 border rounded" 
-                placeholder="e.g. Premium Dog Food"
+          {/* Basic Information */}
+          <div className="grid md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-medium mb-1">Product Name <span className="text-red-500">*</span></label>
+              <input
+                type="text"
+                required
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-black"
+                placeholder="Premium Dog Food"
               />
             </div>
-            <div className="space-y-1">
-              <label className="block font-medium">Category *</label>
-              <select 
-                value={formData.category} 
-                onChange={(e) => setFormData({...formData, category: e.target.value})} 
-                className="w-full p-2 border rounded"
+
+            <div>
+              <label className="block text-sm font-medium mb-1">Category <span className="text-red-500">*</span></label>
+              <select
+                value={formData.category}
+                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                className="w-full p-3 border rounded-lg"
               >
                 <option value="Food">🍖 Food</option>
                 <option value="Toys">🧸 Toys</option>
@@ -313,8 +332,8 @@ export default function NewProductPage() {
             </div>
           </div>
 
-          {/* Has Variations Toggle */}
-          <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
+          {/* Variations Toggle */}
+          <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
             <input
               type="checkbox"
               id="hasVariations"
@@ -325,99 +344,77 @@ export default function NewProductPage() {
                   setVariations([{ size: 'Small', price: 0, compare_price: 0, stock: 0, sku: '', weight: '' }]);
                 }
               }}
-              className="w-4 h-4"
+              className="w-5 h-5 accent-black"
             />
-            <label htmlFor="hasVariations" className="font-medium">
-              📦 This product has size variations (Small, Medium, Large)
+            <label htmlFor="hasVariations" className="font-medium cursor-pointer">
+              This product has size/color variations
             </label>
           </div>
 
-          {/* Simple Pricing (no variations) */}
+          {/* Simple Product Pricing */}
           {!hasVariations && (
-            <>
-              <div className="grid md:grid-cols-3 gap-4">
-                <div className="space-y-1">
-                  <label className="block font-medium text-sm">Selling Price (₦) *</label>
-                  <input 
-                    type="number" 
-                    required 
-                    value={formData.price} 
-                    onChange={(e) => setFormData({...formData, price: e.target.value})} 
-                    className="w-full p-2 border rounded" 
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="block font-medium text-sm">Cost Price (₦)</label>
-                  <input 
-                    type="number" 
-                    value={formData.cost} 
-                    onChange={(e) => setFormData({...formData, cost: e.target.value})} 
-                    className="w-full p-2 border rounded" 
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="block font-medium text-sm">Compare at Price</label>
-                  <input 
-                    type="number" 
-                    value={formData.compare_price} 
-                    onChange={(e) => setFormData({...formData, compare_price: e.target.value})} 
-                    className="w-full p-2 border rounded" 
-                  />
-                </div>
+            <div className="grid md:grid-cols-3 gap-6">
+              <div>
+                <label className="block text-sm font-medium mb-1">Selling Price (₦) <span className="text-red-500">*</span></label>
+                <input
+                  type="number"
+                  required
+                  value={formData.price}
+                  onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                  className="w-full p-3 border rounded-lg"
+                />
               </div>
-
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="block font-medium text-sm">Stock Quantity</label>
-                  <input 
-                    type="number" 
-                    value={formData.stock} 
-                    onChange={(e) => setFormData({...formData, stock: e.target.value})} 
-                    className="w-full p-2 border rounded" 
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="block font-medium text-sm">Weight</label>
-                  <input 
-                    type="text" 
-                    value={formData.weight} 
-                    onChange={(e) => setFormData({...formData, weight: e.target.value})} 
-                    className="w-full p-2 border rounded" 
-                    placeholder="e.g. 15kg" 
-                  />
-                </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Cost Price (₦)</label>
+                <input
+                  type="number"
+                  value={formData.cost}
+                  onChange={(e) => setFormData({ ...formData, cost: e.target.value })}
+                  className="w-full p-3 border rounded-lg"
+                />
               </div>
-            </>
+              <div>
+                <label className="block text-sm font-medium mb-1">Compare at Price</label>
+                <input
+                  type="number"
+                  value={formData.compare_price}
+                  onChange={(e) => setFormData({ ...formData, compare_price: e.target.value })}
+                  className="w-full p-3 border rounded-lg"
+                />
+              </div>
+            </div>
           )}
 
-          {/* Size Variations Section */}
+          {/* Variations Section */}
           {hasVariations && (
-            <div className="space-y-4 border border-gray-200 rounded-lg p-4 bg-gray-50">
-              <h3 className="font-bold text-lg">📏 Size Variations</h3>
-              <p className="text-xs text-gray-500 mb-2">Define pricing and stock for each size option</p>
-              
+            <div className="border border-gray-200 rounded-xl p-6 bg-gray-50 space-y-6">
+              <div>
+                <h3 className="font-semibold text-lg">Size Variations</h3>
+                <p className="text-sm text-gray-600">Add different sizes with their own price and stock</p>
+              </div>
+
               {variations.map((variation, index) => (
-                <div key={index} className="border rounded-lg p-4 bg-white">
-                  <div className="flex justify-between items-center mb-3">
+                <div key={index} className="bg-white border rounded-xl p-5 space-y-4">
+                  <div className="flex justify-between items-center">
                     <h4 className="font-medium">Variation {index + 1}</h4>
                     {variations.length > 1 && (
                       <button
                         type="button"
                         onClick={() => removeVariation(index)}
-                        className="text-red-500 text-sm hover:text-red-700"
+                        className="text-red-600 hover:text-red-700 text-sm"
                       >
                         Remove
                       </button>
                     )}
                   </div>
-                  
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     <div>
-                      <label className="block text-xs font-medium mb-1">Size *</label>
+                      <label className="text-xs font-medium block mb-1">Size</label>
                       <select
                         value={variation.size}
                         onChange={(e) => updateVariation(index, 'size', e.target.value)}
-                        className="w-full p-2 border rounded text-sm"
+                        className="w-full p-2.5 border rounded-lg text-sm"
                       >
                         <option value="Small">Small</option>
                         <option value="Medium">Medium</option>
@@ -425,126 +422,132 @@ export default function NewProductPage() {
                         <option value="X-Large">X-Large</option>
                       </select>
                     </div>
+
                     <div>
-                      <label className="block text-xs font-medium mb-1">Price (₦) *</label>
+                      <label className="text-xs font-medium block mb-1">Price (₦)</label>
                       <input
                         type="number"
                         value={variation.price}
                         onChange={(e) => updateVariation(index, 'price', Number(e.target.value))}
-                        className="w-full p-2 border rounded text-sm"
-                        placeholder="Price"
+                        className="w-full p-2.5 border rounded-lg text-sm"
+                        placeholder="0"
                       />
                     </div>
+
                     <div>
-                      <label className="block text-xs font-medium mb-1">Stock *</label>
+                      <label className="text-xs font-medium block mb-1">Stock</label>
                       <input
                         type="number"
                         value={variation.stock}
                         onChange={(e) => updateVariation(index, 'stock', Number(e.target.value))}
-                        className="w-full p-2 border rounded text-sm"
-                        placeholder="Quantity"
+                        className="w-full p-2.5 border rounded-lg text-sm"
+                        placeholder="0"
                       />
                     </div>
+
                     <div>
-                      <label className="block text-xs font-medium mb-1">SKU</label>
+                      <label className="text-xs font-medium block mb-1">SKU</label>
                       <input
                         type="text"
                         value={variation.sku}
                         onChange={(e) => updateVariation(index, 'sku', e.target.value)}
-                        className="w-full p-2 border rounded text-sm"
+                        className="w-full p-2.5 border rounded-lg text-sm"
                         placeholder="Optional"
                       />
                     </div>
+
                     <div>
-                      <label className="block text-xs font-medium mb-1">Weight</label>
+                      <label className="text-xs font-medium block mb-1">Weight</label>
                       <input
                         type="text"
                         value={variation.weight}
                         onChange={(e) => updateVariation(index, 'weight', e.target.value)}
-                        className="w-full p-2 border rounded text-sm"
+                        className="w-full p-2.5 border rounded-lg text-sm"
                         placeholder="e.g. 2kg"
                       />
                     </div>
                   </div>
                 </div>
               ))}
-              
+
               <button
                 type="button"
                 onClick={addVariation}
-                className="mt-2 text-blue-600 text-sm font-medium hover:text-blue-800"
+                className="text-blue-600 hover:text-blue-700 font-medium text-sm flex items-center gap-1"
               >
-                + Add Another Size
+                + Add Another Variation
               </button>
             </div>
           )}
 
-          {/* SKU & Brand (visible for both modes) */}
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="block font-medium text-sm">SKU</label>
-              <input 
-                type="text" 
-                value={formData.sku} 
-                onChange={(e) => setFormData({...formData, sku: e.target.value})} 
-                className="w-full p-2 border rounded" 
-                placeholder="Auto-generated if empty" 
+          {/* Common Fields */}
+          <div className="grid md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-medium mb-1">SKU</label>
+              <input
+                type="text"
+                value={formData.sku}
+                onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                className="w-full p-3 border rounded-lg"
+                placeholder="Auto-generated if empty"
               />
             </div>
-            <div className="space-y-1">
-              <label className="block font-medium text-sm">Brand</label>
-              <input 
-                type="text" 
-                value={formData.brand} 
-                onChange={(e) => setFormData({...formData, brand: e.target.value})} 
-                className="w-full p-2 border rounded" 
-                placeholder="e.g. Royal Canin" 
+            <div>
+              <label className="block text-sm font-medium mb-1">Brand</label>
+              <input
+                type="text"
+                value={formData.brand}
+                onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
+                className="w-full p-3 border rounded-lg"
+                placeholder="e.g. Royal Canin"
               />
             </div>
           </div>
 
-          {/* Description */}
-          <div className="space-y-1">
-            <label className="block font-medium">Description</label>
-            <textarea 
-              value={formData.description} 
-              onChange={(e) => setFormData({...formData, description: e.target.value})} 
-              rows={4} 
-              className="w-full p-2 border rounded" 
-              placeholder="Tell customers about the features, materials, and benefits..."
+          <div>
+            <label className="block text-sm font-medium mb-1">Description</label>
+            <textarea
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              rows={5}
+              className="w-full p-3 border rounded-lg resize-y"
+              placeholder="Describe the product, features, benefits..."
             />
           </div>
 
-          {/* Visibility Checkboxes */}
-          <div className="flex gap-6 p-4 bg-blue-50 rounded-lg">
+          {/* Status */}
+          <div className="flex flex-wrap gap-8 p-5 bg-blue-50 rounded-xl">
             <label className="flex items-center gap-2 cursor-pointer">
-              <input 
-                type="checkbox" 
-                checked={formData.in_stock} 
-                onChange={(e) => setFormData({...formData, in_stock: e.target.checked})} 
-                className="w-4 h-4"
+              <input
+                type="checkbox"
+                checked={formData.in_stock}
+                onChange={(e) => setFormData({ ...formData, in_stock: e.target.checked })}
+                className="w-5 h-5 accent-black"
                 disabled={hasVariations}
               />
-              <span className="font-medium text-sm">In Stock</span>
-              {hasVariations && <span className="text-xs text-gray-500">(Auto-managed by variations)</span>}
+              <span className="font-medium">In Stock</span>
+              {hasVariations && <span className="text-xs text-gray-500">(Auto-managed)</span>}
             </label>
+
             <label className="flex items-center gap-2 cursor-pointer">
-              <input 
-                type="checkbox" 
-                checked={formData.featured} 
-                onChange={(e) => setFormData({...formData, featured: e.target.checked})} 
-                className="w-4 h-4"
+              <input
+                type="checkbox"
+                checked={formData.featured}
+                onChange={(e) => setFormData({ ...formData, featured: e.target.checked })}
+                className="w-5 h-5 accent-black"
               />
-              <span className="font-medium text-sm">Featured Product</span>
+              <span className="font-medium">Featured Product</span>
             </label>
           </div>
 
-          <button 
-            type="submit" 
-            disabled={loading || uploading} 
-            className="w-full bg-black text-white py-3 rounded-lg font-bold hover:bg-gray-800 transition-colors disabled:opacity-50"
+          <button
+            type="submit"
+            disabled={loading || uploading || !formData.name.trim()}
+            className="w-full bg-black hover:bg-gray-900 disabled:bg-gray-400 text-white py-4 rounded-xl font-semibold transition-all"
           >
-            {loading ? 'Creating Product...' : uploading ? `Uploading ${imageFiles.length} images...` : 'Create Product'}
+            {loading ? 'Creating Product...' : 
+             uploading ? `Uploading Images...` : 
+             'Create Product'}
           </button>
         </form>
       </div>
