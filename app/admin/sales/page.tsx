@@ -40,7 +40,6 @@ export default function AdminSalesPage() {
     customer_phone: '',
     customer_email: '',
     price: '',
-    cost: '',
     payment_method: '',
     payment_status: '',
     sale_date: '',
@@ -51,6 +50,8 @@ export default function AdminSalesPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletingSale, setDeletingSale] = useState<Sale | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [deleteSuccess, setDeleteSuccess] = useState(false);
+  const [editSuccess, setEditSuccess] = useState(false);
 
   useEffect(() => {
     fetchAllSales();
@@ -72,17 +73,14 @@ export default function AdminSalesPage() {
     }
 
     try {
-      // Fetch from sales table
       let salesQuery = supabase.from('sales').select('*');
       if (startDate) salesQuery = salesQuery.gte('created_at', startDate.toISOString());
       const { data: salesData } = await salesQuery.order('created_at', { ascending: false });
 
-      // Fetch pending orders
       let ordersQuery = supabase.from('orders').select('*').eq('payment_status', 'pending');
       if (startDate) ordersQuery = ordersQuery.gte('created_at', startDate.toISOString());
       const { data: ordersData } = await ordersQuery.order('created_at', { ascending: false });
 
-      // Transform orders into Sale-like structure
       const pendingOrders: Sale[] = (ordersData || []).map((o: any) => ({
         id: o.id,
         source: 'shop_order' as const,
@@ -97,7 +95,6 @@ export default function AdminSalesPage() {
         order_reference: o.order_reference,
       }));
 
-      // Combine sales with profit calculation
       const combined = [
         ...(salesData || []).map(s => {
           const profit = s.profit ?? (s.cost ? Number(s.price) - Number(s.cost) : undefined);
@@ -109,31 +106,31 @@ export default function AdminSalesPage() {
       setSales(combined);
     } catch (error) {
       console.error('Error fetching transactions:', error);
+      alert('Error loading sales data. Check console for details.');
     } finally {
       setLoading(false);
     }
   };
 
-  // Update sale
+  // Update sale in Supabase
   const updateSale = async () => {
     if (!editingSale) return;
     setSubmitting(true);
+    setEditSuccess(false);
     
     try {
-      const newProfit = Number(editForm.price) - Number(editForm.cost);
-      
       const updateData = {
         customer_name: editForm.customer_name,
         customer_phone: editForm.customer_phone || null,
         customer_email: editForm.customer_email || null,
         price: Number(editForm.price),
-        cost: Number(editForm.cost) || null,
-        profit: newProfit,
         payment_method: editForm.payment_method,
         payment_status: editForm.payment_status,
         sale_date: editForm.sale_date,
         notes: editForm.notes || null
       };
+      
+      console.log('Updating sale:', editingSale.id, updateData);
       
       const { error } = await supabase
         .from('sales')
@@ -142,6 +139,9 @@ export default function AdminSalesPage() {
       
       if (error) throw error;
       
+      setEditSuccess(true);
+      setTimeout(() => setEditSuccess(false), 3000);
+      
       alert('✅ Sale updated successfully!');
       setShowEditModal(false);
       setEditingSale(null);
@@ -149,24 +149,24 @@ export default function AdminSalesPage() {
       
     } catch (error: any) {
       console.error('Error updating sale:', error);
-      alert('Error updating sale: ' + error.message);
+      alert('❌ Error updating sale: ' + error.message);
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Delete sale
+  // Delete sale from Supabase
   const deleteSale = async () => {
     if (!deletingSale) return;
     
-    if (!confirm(`⚠️ Are you sure you want to permanently delete this sale?\n\nItem: ${deletingSale.item_name}\nAmount: ₦${deletingSale.price.toLocaleString()}\nCustomer: ${deletingSale.customer_name}\n\nThis action cannot be undone!`)) return;
-    
     setSubmitting(true);
+    setDeleteSuccess(false);
     
     try {
+      console.log('Deleting sale:', deletingSale.id);
+      
       // Check if this sale is linked to a dog
       if (deletingSale.source === 'dog_reserve' || deletingSale.source === 'dog_sold') {
-        // Find the dog and update its status back to available
         const { data: dog } = await supabase
           .from('dogs')
           .select('id, status')
@@ -178,16 +178,19 @@ export default function AdminSalesPage() {
             .from('dogs')
             .update({ status: 'available' })
             .eq('id', deletingSale.item_id);
+          console.log('Dog status reset to available');
         }
       }
       
-      // Delete the sale
       const { error } = await supabase
         .from('sales')
         .delete()
         .eq('id', deletingSale.id);
       
       if (error) throw error;
+      
+      setDeleteSuccess(true);
+      setTimeout(() => setDeleteSuccess(false), 3000);
       
       alert('✅ Sale deleted successfully!');
       setShowDeleteModal(false);
@@ -196,17 +199,17 @@ export default function AdminSalesPage() {
       
     } catch (error: any) {
       console.error('Error deleting sale:', error);
-      alert('Error deleting sale: ' + error.message);
+      alert('❌ Error deleting sale: ' + error.message);
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Bulk delete sales
+  // Bulk delete
   const bulkDeleteSales = async () => {
     if (selectedSales.length === 0) return;
     
-    if (!confirm(`⚠️ Are you sure you want to delete ${selectedSales.length} selected sale(s)? This action cannot be undone!`)) return;
+    if (!confirm(`⚠️ Are you sure you want to delete ${selectedSales.length} selected sale(s)? This cannot be undone!`)) return;
     
     setSubmitting(true);
     
@@ -214,7 +217,6 @@ export default function AdminSalesPage() {
       for (const saleId of selectedSales) {
         const sale = sales.find(s => s.id === saleId);
         if (sale) {
-          // Check if linked to dog
           if (sale.source === 'dog_reserve' || sale.source === 'dog_sold') {
             const { data: dog } = await supabase
               .from('dogs')
@@ -240,13 +242,12 @@ export default function AdminSalesPage() {
       
     } catch (error: any) {
       console.error('Error bulk deleting sales:', error);
-      alert('Error bulk deleting sales: ' + error.message);
+      alert('❌ Error bulk deleting sales: ' + error.message);
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Toggle select all
   const toggleSelectAll = () => {
     if (selectedSales.length === filteredSales.length) {
       setSelectedSales([]);
@@ -255,7 +256,6 @@ export default function AdminSalesPage() {
     }
   };
 
-  // Toggle select single
   const toggleSelectSale = (saleId: number) => {
     setSelectedSales(prev =>
       prev.includes(saleId)
@@ -264,7 +264,6 @@ export default function AdminSalesPage() {
     );
   };
 
-  // Open edit modal
   const openEditModal = (sale: Sale) => {
     setEditingSale(sale);
     setEditForm({
@@ -272,7 +271,6 @@ export default function AdminSalesPage() {
       customer_phone: sale.customer_phone || '',
       customer_email: sale.customer_email || '',
       price: sale.price.toString(),
-      cost: sale.cost?.toString() || '',
       payment_method: sale.payment_method || 'transfer',
       payment_status: sale.payment_status,
       sale_date: sale.sale_date,
@@ -281,31 +279,23 @@ export default function AdminSalesPage() {
     setShowEditModal(true);
   };
 
-  // Open delete modal
   const openDeleteModal = (sale: Sale) => {
     setDeletingSale(sale);
     setShowDeleteModal(true);
   };
 
-  // Export to CSV
   const exportSales = () => {
-    const headers = ['Date', 'Item', 'Customer', 'Phone', 'Amount', 'Cost', 'Profit', 'Margin', 'Status', 'Source'];
-    const rows = filteredSales.map(s => {
-      const profit = s.profit || 0;
-      const margin = s.price > 0 ? (profit / s.price) * 100 : 0;
-      return [
-        new Date(s.sale_date).toLocaleDateString(),
-        s.item_name || s.source,
-        s.customer_name,
-        s.customer_phone || '',
-        s.price,
-        s.cost || 0,
-        profit,
-        margin.toFixed(1) + '%',
-        s.payment_status,
-        s.source
-      ];
-    });
+    const headers = ['Date', 'Item', 'Customer', 'Phone', 'Amount', 'Profit', 'Status', 'Source'];
+    const rows = filteredSales.map(s => [
+      new Date(s.sale_date).toLocaleDateString(),
+      s.item_name || s.source,
+      s.customer_name,
+      s.customer_phone || '',
+      s.price,
+      s.profit || 0,
+      s.payment_status,
+      s.source
+    ]);
     
     const csv = [headers, ...rows].map(row => row.join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -400,8 +390,6 @@ export default function AdminSalesPage() {
           totalCost += cost * (item.quantity || 1);
         });
 
-        const profit = order.total_amount - totalCost;
-
         await supabase.from('sales').insert([{
           source: 'shop_order',
           item_type: 'order',
@@ -412,7 +400,7 @@ export default function AdminSalesPage() {
           customer_phone: order.customer_phone,
           price: order.total_amount,
           cost: totalCost,
-          profit: profit,
+          profit: order.total_amount - totalCost,
           payment_status: 'paid',
           payment_method: order.payment_method || 'transfer',
           sale_date: new Date().toISOString().split('T')[0],
@@ -422,11 +410,11 @@ export default function AdminSalesPage() {
 
         await supabase.from('orders').update({ payment_status: 'paid' }).eq('id', order.id);
 
-        alert(`✅ Order #${order.order_reference} marked as paid. Profit: ₦${profit.toLocaleString()}`);
+        alert('✅ Order marked as paid and added to sales ledger.');
         fetchAllSales();
       } catch (err) {
         console.error(err);
-        alert('Error marking as paid: ' + (err as Error).message);
+        alert('❌ Error marking as paid: ' + (err as Error).message);
       } finally {
         setSubmitting(false);
       }
@@ -469,7 +457,7 @@ export default function AdminSalesPage() {
 
         {/* Search and Filters */}
         <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <input
               type="text"
               placeholder="Search by item, customer, or phone..."
@@ -477,40 +465,50 @@ export default function AdminSalesPage() {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
             />
-            <select
-              value={sourceFilter}
-              onChange={(e) => setSourceFilter(e.target.value)}
-              className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-            >
-              <option value="all">All Sources</option>
-              <option value="dog_reserve">Dog Deposits</option>
-              <option value="dog_sold">Dog Sales</option>
-              <option value="shop_order">Shop Orders</option>
-              <option value="manual_sale">Manual Sales</option>
-            </select>
-            <select
-              value={period}
-              onChange={(e) => setPeriod(e.target.value as any)}
-              className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-            >
-              <option value="week">Last 7 Days</option>
-              <option value="month">Last 30 Days</option>
-              <option value="year">Last 12 Months</option>
-              <option value="all">All Time</option>
-            </select>
             <div className="flex gap-2">
-              {selectedSales.length > 0 && (
+              {['all', 'dog_reserve', 'dog_sold', 'shop_order', 'manual_sale'].map(src => (
                 <button
-                  onClick={bulkDeleteSales}
-                  disabled={submitting}
-                  className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-700 disabled:opacity-50 w-full"
+                  key={src}
+                  onClick={() => setSourceFilter(src)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                    sourceFilter === src
+                      ? 'bg-slate-900 text-white shadow-md'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
                 >
-                  Delete {selectedSales.length} Selected
+                  {src.replace('_', ' ').toUpperCase()}
                 </button>
-              )}
+              ))}
+            </div>
+            <div className="flex gap-2 justify-end">
+              {['week', 'month', 'year', 'all'].map(p => (
+                <button
+                  key={p}
+                  onClick={() => setPeriod(p as any)}
+                  className={`px-4 py-2 rounded-lg text-xs font-black transition-all ${
+                    period === p ? 'bg-slate-900 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'
+                  }`}
+                >
+                  {p.toUpperCase()}
+                </button>
+              ))}
             </div>
           </div>
         </div>
+
+        {/* Bulk Actions */}
+        {selectedSales.length > 0 && (
+          <div className="bg-amber-50 p-3 rounded-xl mb-6 flex justify-between items-center">
+            <span className="text-sm font-medium">{selectedSales.length} sale(s) selected</span>
+            <button
+              onClick={bulkDeleteSales}
+              disabled={submitting}
+              className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-700 disabled:opacity-50"
+            >
+              Delete Selected
+            </button>
+          </div>
+        )}
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
@@ -564,85 +562,77 @@ export default function AdminSalesPage() {
                   <th className="p-4 text-xs font-black text-slate-500 uppercase tracking-tighter">Customer</th>
                   <th className="p-4 text-xs font-black text-slate-500 uppercase tracking-tighter text-right">Amount</th>
                   <th className="p-4 text-xs font-black text-slate-500 uppercase tracking-tighter text-right">Profit</th>
-                  <th className="p-4 text-xs font-black text-slate-500 uppercase tracking-tighter text-right">Margin</th>
                   <th className="p-4 text-xs font-black text-slate-500 uppercase tracking-tighter">Status</th>
                   <th className="p-4 text-xs font-black text-slate-500 uppercase tracking-tighter text-center">Actions</th>
-                 </tr>
+                  </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredSales.map((s) => {
-                  const profit = s.profit || 0;
-                  const margin = s.price > 0 ? (profit / s.price) * 100 : 0;
-                  return (
-                    <tr key={`${s.source}-${s.id}`} className="hover:bg-slate-50 transition-colors">
-                      <td className="p-4">
-                        <input
-                          type="checkbox"
-                          checked={selectedSales.includes(s.id)}
-                          onChange={() => toggleSelectSale(s.id)}
-                          className="w-4 h-4"
-                        />
-                      </td>
-                      <td className="p-4 text-sm text-slate-700">
-                        {new Date(s.sale_date || s.created_at).toLocaleDateString()}
-                      </td>
-                      <td className="p-4">
-                        <div className="font-medium text-slate-900">
-                          {s.item_name || s.source}
-                        </div>
-                        <div className="text-xs text-slate-500 capitalize">{s.source.replace('_', ' ')}</div>
-                      </td>
-                      <td className="p-4">
-                        <div className="text-sm font-medium text-slate-800">{s.customer_name}</div>
-                        {s.customer_phone && <div className="text-xs text-slate-500">{s.customer_phone}</div>}
-                      </td>
-                      <td className="p-4 text-right font-medium">
-                        ₦{s.price.toLocaleString()}
-                      </td>
-                      <td className="p-4 text-right font-medium text-emerald-600">
-                        {profit !== undefined && profit !== null ? `₦${profit.toLocaleString()}` : '-'}
-                      </td>
-                      <td className="p-4 text-right font-medium text-emerald-600">
-                        {margin > 0 ? `${margin.toFixed(1)}%` : '-'}
-                      </td>
-                      <td className="p-4">
-                        <span className={`px-2 py-1 rounded-full text-xs font-bold ${getStatusStyle(s.payment_status)}`}>
-                          {s.payment_status}
-                        </span>
-                      </td>
-                      <td className="p-4 text-center">
-                        <div className="flex justify-center gap-2">
-                          {s.payment_status === 'pending' && s.source === 'shop_order' ? (
+                {filteredSales.map((s) => (
+                  <tr key={`${s.source}-${s.id}`} className="hover:bg-slate-50 transition-colors">
+                    <td className="p-4">
+                      <input
+                        type="checkbox"
+                        checked={selectedSales.includes(s.id)}
+                        onChange={() => toggleSelectSale(s.id)}
+                        className="w-4 h-4"
+                      />
+                    </td>
+                    <td className="p-4 text-sm text-slate-700">
+                      {new Date(s.sale_date || s.created_at).toLocaleDateString()}
+                    </td>
+                    <td className="p-4">
+                      <div className="font-medium text-slate-900">
+                        {s.item_name || s.source}
+                      </div>
+                      <div className="text-xs text-slate-500 capitalize">{s.source.replace('_', ' ')}</div>
+                    </td>
+                    <td className="p-4">
+                      <div className="text-sm font-medium text-slate-800">{s.customer_name}</div>
+                      {s.customer_phone && <div className="text-xs text-slate-500">{s.customer_phone}</div>}
+                    </td>
+                    <td className="p-4 text-right font-medium">
+                      ₦{s.price.toLocaleString()}
+                    </td>
+                    <td className="p-4 text-right font-medium text-emerald-600">
+                      {s.profit !== undefined && s.profit !== null ? `₦${s.profit.toLocaleString()}` : '-'}
+                    </td>
+                    <td className="p-4">
+                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${getStatusStyle(s.payment_status)}`}>
+                        {s.payment_status}
+                      </span>
+                    </td>
+                    <td className="p-4 text-center">
+                      <div className="flex justify-center gap-2">
+                        {s.payment_status === 'pending' && s.source === 'shop_order' ? (
+                          <button
+                            onClick={() => handleMarkPaid(s)}
+                            disabled={submitting}
+                            className="text-xs font-black bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full hover:bg-emerald-200 transition"
+                          >
+                            ✓ Mark Paid
+                          </button>
+                        ) : (
+                          <>
                             <button
-                              onClick={() => handleMarkPaid(s)}
-                              disabled={submitting}
-                              className="text-xs font-black bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full hover:bg-emerald-200 transition"
+                              onClick={() => openEditModal(s)}
+                              className="text-blue-600 hover:text-blue-800 text-xs font-black px-2 py-1 rounded hover:bg-blue-50 transition"
+                              title="Edit Sale"
                             >
-                              ✓ Mark Paid
+                              ✏️ Edit
                             </button>
-                          ) : (
-                            <>
-                              <button
-                                onClick={() => openEditModal(s)}
-                                className="text-blue-600 hover:text-blue-800 text-xs font-black px-2 py-1 rounded hover:bg-blue-50 transition"
-                                title="Edit Sale"
-                              >
-                                ✏️
-                              </button>
-                              <button
-                                onClick={() => openDeleteModal(s)}
-                                className="text-red-600 hover:text-red-800 text-xs font-black px-2 py-1 rounded hover:bg-red-50 transition"
-                                title="Delete Sale"
-                              >
-                                🗑️
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                            <button
+                              onClick={() => openDeleteModal(s)}
+                              className="text-red-600 hover:text-red-800 text-xs font-black px-2 py-1 rounded hover:bg-red-50 transition"
+                              title="Delete Sale"
+                            >
+                              🗑️ Delete
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -704,40 +694,16 @@ export default function AdminSalesPage() {
                   />
                 </div>
                 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block font-medium mb-1">Amount (₦) *</label>
-                    <input
-                      type="number"
-                      required
-                      value={editForm.price}
-                      onChange={(e) => setEditForm({...editForm, price: e.target.value})}
-                      className="w-full p-2 border rounded"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-medium mb-1">Cost (₦)</label>
-                    <input
-                      type="number"
-                      value={editForm.cost}
-                      onChange={(e) => setEditForm({...editForm, cost: e.target.value})}
-                      className="w-full p-2 border rounded"
-                      placeholder="Your cost"
-                    />
-                  </div>
+                <div>
+                  <label className="block font-medium mb-1">Amount (₦) *</label>
+                  <input
+                    type="number"
+                    required
+                    value={editForm.price}
+                    onChange={(e) => setEditForm({...editForm, price: e.target.value})}
+                    className="w-full p-2 border rounded"
+                  />
                 </div>
-                
-                {Number(editForm.price) > 0 && Number(editForm.cost) > 0 && (
-                  <div className="bg-emerald-50 p-3 rounded-lg">
-                    <p className="text-sm font-medium">Profit Preview:</p>
-                    <p className="text-lg font-bold text-emerald-600">
-                      ₦{(Number(editForm.price) - Number(editForm.cost)).toLocaleString()}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      Margin: {((Number(editForm.price) - Number(editForm.cost)) / Number(editForm.price) * 100).toFixed(1)}%
-                    </p>
-                  </div>
-                )}
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -820,7 +786,6 @@ export default function AdminSalesPage() {
                 <p><strong>Item:</strong> {deletingSale.item_name || deletingSale.source}</p>
                 <p><strong>Customer:</strong> {deletingSale.customer_name}</p>
                 <p><strong>Amount:</strong> ₦{deletingSale.price.toLocaleString()}</p>
-                <p><strong>Profit:</strong> {deletingSale.profit ? `₦${deletingSale.profit.toLocaleString()}` : '-'}</p>
                 <p><strong>Date:</strong> {new Date(deletingSale.sale_date).toLocaleDateString()}</p>
               </div>
               
