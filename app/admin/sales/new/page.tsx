@@ -1,3 +1,4 @@
+// app/admin/sales/new/page.tsx
 "use client";
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -17,6 +18,7 @@ interface Dog {
   name: string;
   type: string;
   price?: number;
+  cost?: number;  // Add cost for dogs
 }
 
 interface Product {
@@ -34,6 +36,8 @@ export default function NewSalePage() {
   const [dogs, setDogs] = useState<Dog[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [balanceDue, setBalanceDue] = useState(0);
+  const [profitPreview, setProfitPreview] = useState(0);
+  const [profitMarginPreview, setProfitMarginPreview] = useState(0);
   
   const [formData, setFormData] = useState({
     item_type: 'puppy',
@@ -58,11 +62,15 @@ export default function NewSalePage() {
   }, []);
 
   useEffect(() => {
-    // Update price when item changes
+    // Update price and cost when item changes
     if (formData.item_type === 'puppy' || formData.item_type === 'stud') {
       const selectedDog = dogs.find(d => d.id === Number(formData.item_id));
-      if (selectedDog?.price) {
-        setFormData(prev => ({ ...prev, price: selectedDog.price?.toString() || '' }));
+      if (selectedDog) {
+        setFormData(prev => ({ 
+          ...prev, 
+          price: selectedDog.price?.toString() || '',
+          cost: selectedDog.cost?.toString() || ''
+        }));
       }
     } else if (formData.item_type === 'product') {
       const selectedProduct = products.find(p => p.id === Number(formData.item_id));
@@ -87,29 +95,43 @@ export default function NewSalePage() {
     }
   }, [formData.price, formData.deposit_amount, formData.payment_status]);
 
+  // Calculate profit preview
+  useEffect(() => {
+    const totalPrice = Number(formData.price) || 0;
+    const itemCost = Number(formData.cost) || 0;
+    const profit = totalPrice - itemCost;
+    setProfitPreview(profit);
+    setProfitMarginPreview(totalPrice > 0 ? (profit / totalPrice) * 100 : 0);
+  }, [formData.price, formData.cost]);
+
   const fetchData = async () => {
-    // Fetch customers
-    const { data: customersData } = await supabase
-      .from('customers')
-      .select('*')
-      .order('name');
-    setCustomers(customersData || []);
+    try {
+      // Fetch customers
+      const { data: customersData } = await supabase
+        .from('customers')
+        .select('*')
+        .order('name');
+      setCustomers(customersData || []);
 
-    // Fetch available dogs (puppies and studs)
-    const { data: dogsData } = await supabase
-      .from('dogs')
-      .select('id, name, type, price')
-      .in('type', ['puppy', 'stud'])
-      .order('name');
-    setDogs(dogsData || []);
+      // Fetch dogs with cost if available
+      const { data: dogsData } = await supabase
+        .from('dogs')
+        .select('id, name, type, price, cost')
+        .in('type', ['puppy', 'stud'])
+        .order('name');
+      setDogs(dogsData || []);
 
-    // Fetch products
-    const { data: productsData } = await supabase
-      .from('products')
-      .select('id, name, price, cost, stock')
-      .eq('in_stock', true)
-      .order('name');
-    setProducts(productsData || []);
+      // Fetch products
+      const { data: productsData } = await supabase
+        .from('products')
+        .select('id, name, price, cost, stock')
+        .eq('in_stock', true)
+        .order('name');
+      setProducts(productsData || []);
+    } catch (error: any) {
+      console.error('Error fetching data:', error);
+      alert('Error loading data: ' + error.message);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -118,14 +140,24 @@ export default function NewSalePage() {
 
     // Get item details
     let itemName = '';
-    let itemCost = formData.cost ? Number(formData.cost) : 0;
+    let itemCost = Number(formData.cost) || 0;
     
     if (formData.item_type === 'puppy' || formData.item_type === 'stud') {
       const dog = dogs.find(d => d.id === Number(formData.item_id));
       itemName = dog?.name || '';
+      // If cost not provided, estimate based on typical margin
+      if (!itemCost && dog?.price) {
+        itemCost = dog.price * 0.6; // Estimate 40% profit margin
+      }
     } else if (formData.item_type === 'product') {
       const product = products.find(p => p.id === Number(formData.item_id));
       itemName = product?.name || '';
+      // If cost not provided, use product cost or estimate
+      if (!itemCost && product?.cost) {
+        itemCost = product.cost;
+      } else if (!itemCost && product?.price) {
+        itemCost = product.price * 0.6;
+      }
     }
 
     // Prepare customer data
@@ -149,8 +181,11 @@ export default function NewSalePage() {
     const totalPrice = Number(formData.price);
     const depositAmount = Number(formData.deposit_amount);
     const isPartial = formData.payment_status === 'partial';
+    const saleAmount = isPartial ? depositAmount : totalPrice;
+    const profit = saleAmount - itemCost;
     
     const saleData = {
+      source: isPartial ? 'dog_reserve' : (formData.item_type === 'product' ? 'shop_order' : 'dog_sold'),
       item_type: formData.item_type,
       item_id: Number(formData.item_id),
       item_name: itemName,
@@ -159,11 +194,11 @@ export default function NewSalePage() {
       customer_phone: formData.customer_phone || null,
       customer_email: formData.customer_email || null,
       quantity: Number(formData.quantity),
-      price: isPartial ? depositAmount : totalPrice,
+      price: saleAmount,
       cost: itemCost,
-      profit: (isPartial ? depositAmount : totalPrice) - itemCost,
+      profit: profit,
       payment_method: formData.payment_method,
-      payment_status: formData.payment_status,
+      payment_status: isPartial ? 'partial' : formData.payment_status,
       deposit_amount: depositAmount,
       sale_date: formData.sale_date,
       notes: isPartial 
@@ -186,17 +221,21 @@ export default function NewSalePage() {
 
     // If partial payment, create debtor record
     if (isPartial && balanceDue > 0) {
+      const invoiceNumber = `INV-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      
       const debtorData = {
         sale_id: saleResult.id,
+        customer_id: customerId,
         customer_name: formData.customer_name || 'Walk-in Customer',
         customer_phone: formData.customer_phone || null,
         customer_email: formData.customer_email || null,
-        total_amount: totalPrice,
+        invoice_number: invoiceNumber,
+        original_amount: totalPrice,
         amount_paid: depositAmount,
-        balance_due: balanceDue,
+        remaining_amount: balanceDue,
         status: 'pending',
         due_date: formData.due_date || null,
-        notes: `Partial payment for ${itemName}. Original sale: ${saleResult.id}`
+        notes: `Partial payment for ${itemName}. Balance due: ₦${balanceDue.toLocaleString()}`
       };
 
       const { error: debtorError } = await supabase
@@ -210,7 +249,7 @@ export default function NewSalePage() {
         alert(`✅ Sale recorded! Partial payment: ₦${depositAmount.toLocaleString()}. Balance due: ₦${balanceDue.toLocaleString()} added to debtors.`);
       }
     } else {
-      alert('Sale recorded successfully!');
+      alert(`✅ Sale recorded successfully! Revenue: ₦${saleAmount.toLocaleString()} | Profit: ₦${profit.toLocaleString()} | Margin: ${profitMarginPreview.toFixed(1)}%`);
     }
 
     // Update item status if needed
@@ -318,16 +357,49 @@ export default function NewSalePage() {
               </div>
             </div>
 
-            {formData.item_type === 'product' && (
-              <div>
-                <label className="block font-medium mb-1">Cost Price (₦)</label>
-                <input
-                  type="number"
-                  value={formData.cost}
-                  onChange={(e) => setFormData({...formData, cost: e.target.value})}
-                  className="w-full p-2 border rounded"
-                  placeholder="For profit calculation"
-                />
+            {/* Cost Field - Always visible for profit tracking */}
+            <div>
+              <label className="block font-medium mb-1">
+                Cost Price (₦) 
+                <span className="text-xs text-gray-500 ml-2">(Your purchase cost)</span>
+              </label>
+              <input
+                type="number"
+                value={formData.cost}
+                onChange={(e) => setFormData({...formData, cost: e.target.value})}
+                className="w-full p-2 border rounded"
+                placeholder="Enter your cost for profit calculation"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                If left blank, estimated at 60% of selling price
+              </p>
+            </div>
+
+            {/* Profit Preview Card */}
+            {Number(formData.price) > 0 && (
+              <div className="bg-emerald-50 p-3 rounded-lg border border-emerald-200">
+                <h3 className="font-bold text-emerald-800 text-sm mb-2">💰 Profit Preview</h3>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div>
+                    <p className="text-xs text-gray-600">Selling Price</p>
+                    <p className="font-bold text-gray-800">₦{Number(formData.price).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600">Your Cost</p>
+                    <p className="font-bold text-gray-800">₦{Number(formData.cost).toLocaleString() || '?'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600">Profit</p>
+                    <p className={`font-bold ${profitPreview >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                      ₦{profitPreview.toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-2 text-center">
+                  <p className="text-xs text-gray-500">
+                    Profit Margin: <span className="font-bold">{profitMarginPreview.toFixed(1)}%</span>
+                  </p>
+                </div>
               </div>
             )}
           </div>
@@ -520,7 +592,7 @@ export default function NewSalePage() {
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 bg-black text-white py-3 rounded-lg hover:bg-gray-800 disabled:opacity-50 transition"
+              className="flex-1 bg-black text-white py-3 rounded-lg font-bold hover:bg-gray-800 disabled:opacity-50 transition"
             >
               {loading ? 'Recording...' : 'Record Sale'}
             </button>
