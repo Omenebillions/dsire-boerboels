@@ -31,6 +31,7 @@ export default function PuppyReservePage() {
   const [submitting, setSubmitting] = useState(false);
   const [reservationComplete, setReservationComplete] = useState(false);
   const [reservationReference] = useState(`RES-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`);
+  const [reservationId, setReservationId] = useState<number | null>(null);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -39,7 +40,6 @@ export default function PuppyReservePage() {
     notes: ''
   });
 
-  // New: Copy to clipboard function
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     alert("Account number copied to clipboard!");
@@ -68,12 +68,65 @@ export default function PuppyReservePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-   
-    // Simulate a short delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-   
-    setSubmitting(false);
-    setReservationComplete(true);
+
+    const today = new Date().toISOString().split('T')[0];
+    const fullName = `${formData.firstName} ${formData.lastName}`;
+    const totalPrice = puppy?.price || 0;
+    const depositAmount = 100000;
+    const remainingBalance = totalPrice - depositAmount;
+
+    try {
+      // 1. Insert into reservations table
+      const { data: reservation, error: reservationError } = await supabase
+        .from('reservations')
+        .insert([{
+          reference: reservationReference,
+          dog_id: puppy?.id,
+          dog_name: puppy?.name,
+          customer_name: fullName,
+          customer_email: formData.email || null,
+          customer_phone: formData.phone,
+          deposit_amount: depositAmount,
+          total_price: totalPrice,
+          remaining_balance: remainingBalance,
+          status: 'pending',
+          payment_method: 'transfer',
+          payment_status: 'partial',
+          reservation_date: today,
+          notes: formData.notes || null
+        }])
+        .select()
+        .single();
+
+      if (reservationError) {
+        throw new Error(reservationError.message);
+      }
+
+      setReservationId(reservation.id);
+      
+      // 2. Also create a sales record for the deposit
+      await supabase.from('sales').insert([{
+        source: 'dog_reserve',
+        item_type: 'dog',
+        item_id: puppy?.id,
+        item_name: puppy?.name,
+        price: depositAmount,
+        customer_name: fullName,
+        customer_phone: formData.phone,
+        payment_status: 'partial',
+        payment_method: 'transfer',
+        sale_date: today,
+        notes: `Reservation ${reservationReference} - Deposit for ${puppy?.name}`
+      }]);
+
+      setReservationComplete(true);
+
+    } catch (error: any) {
+      console.error('Error creating reservation:', error);
+      alert('Error creating reservation: ' + error.message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handlePaymentProof = () => {
@@ -99,7 +152,7 @@ export default function PuppyReservePage() {
       `━━━━━━━━━━━━━━━━━━━━━%0A` +
       `✅ *ACTION REQUIRED:*%0A` +
       `Customer has reserved ${puppy?.name}. Please verify payment and mark as RESERVED in admin panel.%0A` +
-      `👉 https://dsire-boerboels.vercel.app/admin/dogs`;
+      `👉 https://dsirekennel.com/admin/reservations`;
     window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${message}`, '_blank');
   };
 
@@ -210,6 +263,16 @@ export default function PuppyReservePage() {
                   <p><span className="font-medium">Deposit:</span> ₦100,000</p>
                   <p><span className="font-medium">Balance due:</span> ₦{((puppy.price || 0) - 100000).toLocaleString()}</p>
                 </div>
+              </div>
+
+              {/* Admin Link */}
+              <div className="bg-gray-50 p-4 rounded-lg text-center">
+                <p className="text-xs text-gray-500">
+                  Your reservation has been recorded. Admin will verify your payment and update the status.
+                </p>
+                <Link href="/puppies" className="text-blue-600 text-sm hover:underline mt-2 inline-block">
+                  ← Browse More Puppies
+                </Link>
               </div>
             </div>
           </div>

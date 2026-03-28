@@ -5,6 +5,13 @@ import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import Image from 'next/image';
 
+interface Variation {
+  size: string;
+  price: number;
+  stock: number;
+  in_stock: boolean;
+}
+
 interface Product {
   id: number;
   name: string;
@@ -14,6 +21,7 @@ interface Product {
   in_stock: boolean;
   featured: boolean;
   images?: string[];
+  variations?: Variation[];
   created_at?: string;
 }
 
@@ -36,16 +44,34 @@ export default function AdminProductsPage() {
       query = query.eq('category', categoryFilter);
     }
     
-    if (stockFilter === 'in-stock') {
-      query = query.eq('in_stock', true).gt('stock', 0);
-    } else if (stockFilter === 'low-stock') {
-      query = query.lt('stock', 5).gt('stock', 0);
-    } else if (stockFilter === 'out-of-stock') {
-      query = query.eq('in_stock', false);
+    const { data } = await query.order('created_at', { ascending: false });
+    let allProducts = (data as Product[]) || [];
+    
+    // Apply stock filter after fetching (since variations need client-side calculation)
+    if (stockFilter !== 'all') {
+      allProducts = allProducts.filter(product => {
+        const hasVariations = product.variations && product.variations.length > 0;
+        
+        if (hasVariations) {
+          const totalStock = product.variations!.reduce((sum, v) => sum + (v.stock || 0), 0);
+          const hasInStock = product.variations!.some(v => v.in_stock === true && v.stock > 0);
+          
+          if (stockFilter === 'in-stock') return hasInStock && totalStock > 0;
+          if (stockFilter === 'low-stock') {
+            const hasLowStock = product.variations!.some(v => v.stock > 0 && v.stock < 5);
+            return hasLowStock;
+          }
+          if (stockFilter === 'out-of-stock') return !hasInStock || totalStock === 0;
+        } else {
+          if (stockFilter === 'in-stock') return product.in_stock && (product.stock || 0) > 0;
+          if (stockFilter === 'low-stock') return (product.stock || 0) > 0 && (product.stock || 0) < 5;
+          if (stockFilter === 'out-of-stock') return !product.in_stock || (product.stock || 0) === 0;
+        }
+        return true;
+      });
     }
     
-    const { data } = await query.order('created_at', { ascending: false });
-    setProducts((data as Product[]) || []);
+    setProducts(allProducts);
     setLoading(false);
   };
 
@@ -65,6 +91,31 @@ export default function AdminProductsPage() {
     fetchProducts();
   };
 
+  // Helper function to get product stock info
+  const getProductStockInfo = (product: Product) => {
+    const hasVariations = product.variations && product.variations.length > 0;
+    
+    if (hasVariations) {
+      const totalStock = product.variations!.reduce((sum, v) => sum + (v.stock || 0), 0);
+      const hasInStock = product.variations!.some(v => v.in_stock === true && v.stock > 0);
+      const sizesWithStock = product.variations!.filter(v => v.stock > 0).length;
+      
+      return {
+        totalStock,
+        isInStock: hasInStock && totalStock > 0,
+        displayText: `${sizesWithStock}/${product.variations!.length} sizes`,
+        stockClass: totalStock > 0 ? 'text-green-600' : 'text-red-600'
+      };
+    }
+    
+    return {
+      totalStock: product.stock || 0,
+      isInStock: product.in_stock && (product.stock || 0) > 0,
+      displayText: (product.stock || 0).toString(),
+      stockClass: (product.stock || 0) > 5 ? 'text-green-600' : (product.stock || 0) > 0 ? 'text-yellow-600' : 'text-red-600'
+    };
+  };
+
   // Get unique categories
   const categories = ['all', ...new Set(products.map(p => p.category))];
 
@@ -74,10 +125,23 @@ export default function AdminProductsPage() {
 
   const stats = {
     total: products.length,
-    inStock: products.filter(p => p.in_stock && p.stock > 0).length,
-    lowStock: products.filter(p => p.stock > 0 && p.stock < 5).length,
-    outOfStock: products.filter(p => !p.in_stock || p.stock === 0).length,
-    featured: products.filter(p => p.featured).length
+    inStock: products.filter(p => {
+      const info = getProductStockInfo(p);
+      return info.isInStock;
+    }).length,
+    lowStock: products.filter(p => {
+      const hasVariations = p.variations && p.variations.length > 0;
+      if (hasVariations) {
+        return p.variations!.some(v => v.stock > 0 && v.stock < 5);
+      }
+      return (p.stock || 0) > 0 && (p.stock || 0) < 5;
+    }).length,
+    outOfStock: products.filter(p => {
+      const info = getProductStockInfo(p);
+      return !info.isInStock;
+    }).length,
+    featured: products.filter(p => p.featured).length,
+    withVariations: products.filter(p => p.variations && p.variations.length > 0).length
   };
 
   if (loading) return (
@@ -104,7 +168,7 @@ export default function AdminProductsPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
           <div className="bg-white p-4 rounded-lg shadow-sm text-center">
             <p className="text-xs text-gray-500">Total</p>
             <p className="text-2xl font-bold">{stats.total}</p>
@@ -120,6 +184,10 @@ export default function AdminProductsPage() {
           <div className="bg-white p-4 rounded-lg shadow-sm text-center border-l-4 border-red-500">
             <p className="text-xs text-gray-500">Out of Stock</p>
             <p className="text-2xl font-bold text-red-600">{stats.outOfStock}</p>
+          </div>
+          <div className="bg-white p-4 rounded-lg shadow-sm text-center border-l-4 border-purple-500">
+            <p className="text-xs text-gray-500">With Sizes</p>
+            <p className="text-2xl font-bold text-purple-600">{stats.withVariations}</p>
           </div>
         </div>
 
@@ -154,10 +222,10 @@ export default function AdminProductsPage() {
           </select>
         </div>
 
-        {/* Products Table - Mobile Scroll */}
+        {/* Products Table */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px]">
+            <table className="w-full min-w-[1000px]">
               <thead className="bg-gray-50 border-b">
                 <tr>
                   <th className="p-4 text-left text-sm font-semibold text-gray-600">Image</th>
@@ -170,63 +238,83 @@ export default function AdminProductsPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredProducts.map((product) => (
-                  <tr key={product.id} className="border-b hover:bg-gray-50 transition">
-                    <td className="p-4">
-                      <div className="w-10 h-10 bg-gray-100 rounded-lg overflow-hidden relative">
-                        {product.images?.[0] ? (
-                          <Image src={product.images[0]} alt={product.name} fill className="object-cover" />
+                {filteredProducts.map((product) => {
+                  const stockInfo = getProductStockInfo(product);
+                  const hasVariations = product.variations && product.variations.length > 0;
+                  
+                  return (
+                    <tr key={product.id} className="border-b hover:bg-gray-50 transition">
+                      <td className="p-4">
+                        <div className="w-10 h-10 bg-gray-100 rounded-lg overflow-hidden relative">
+                          {product.images?.[0] ? (
+                            <Image src={product.images[0]} alt={product.name} fill className="object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-lg">🛍️</div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="p-4 font-medium text-gray-900">
+                        <div className="flex items-center gap-2">
+                          {product.name}
+                          {product.featured && <span className="text-yellow-500 text-xs">⭐</span>}
+                          {hasVariations && (
+                            <span className="bg-purple-100 text-purple-600 text-xs px-2 py-0.5 rounded-full">
+                              {product.variations!.length} sizes
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="p-4 text-gray-700">{product.category}</td>
+                      <td className="p-4 font-medium text-gray-900">
+                        {hasVariations ? (
+                          <span className="text-sm">
+                            ₦{Math.min(...product.variations!.map(v => v.price)).toLocaleString()}
+                            {Math.min(...product.variations!.map(v => v.price)) !== Math.max(...product.variations!.map(v => v.price)) && 
+                              ` - ₦${Math.max(...product.variations!.map(v => v.price)).toLocaleString()}`
+                            }
+                          </span>
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center text-lg">🛍️</div>
+                          `₦${product.price.toLocaleString()}`
                         )}
-                      </div>
-                    </td>
-                    <td className="p-4 font-medium text-gray-900">
-                      {product.name}
-                      {product.featured && <span className="ml-2 text-yellow-500 text-xs">⭐</span>}
-                    </td>
-                    <td className="p-4 text-gray-700">{product.category}</td>
-                    <td className="p-4 font-medium text-gray-900">₦{product.price.toLocaleString()}</td>
-                    <td className="p-4">
-                      <span className={`font-medium ${
-                        product.stock > 5 ? 'text-green-600' : 
-                        product.stock > 0 ? 'text-yellow-600' : 'text-red-600'
-                      }`}>
-                        {product.stock}
-                      </span>
-                    </td>
-                    <td className="p-4">
-                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                        product.in_stock ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                      }`}>
-                        {product.in_stock ? 'In Stock' : 'Out of Stock'}
-                      </span>
-                    </td>
-                    <td className="p-4">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => toggleFeatured(product.id, product.featured)}
-                          className={`text-xs font-medium ${product.featured ? 'text-yellow-600' : 'text-gray-400'}`}
-                          title={product.featured ? 'Remove featured' : 'Mark featured'}
-                        >
-                          ⭐
-                        </button>
-                        <Link 
-                          href={`/admin/products/edit/${product.id}`} 
-                          className="text-blue-600 hover:underline text-xs font-medium"
-                        >
-                          Edit
-                        </Link>
-                        <button 
-                          onClick={() => deleteProduct(product.id, product.name)} 
-                          className="text-red-600 hover:underline text-xs font-medium"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="p-4">
+                        <span className={`font-medium ${stockInfo.stockClass}`}>
+                          {stockInfo.displayText}
+                        </span>
+                      </td>
+                      <td className="p-4">
+                        <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                          stockInfo.isInStock ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        }`}>
+                          {stockInfo.isInStock ? 'In Stock' : 'Out of Stock'}
+                        </span>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => toggleFeatured(product.id, product.featured)}
+                            className={`text-xs font-medium ${product.featured ? 'text-yellow-600' : 'text-gray-400'}`}
+                            title={product.featured ? 'Remove featured' : 'Mark featured'}
+                          >
+                            ⭐
+                          </button>
+                          <Link 
+                            href={`/admin/products/edit/${product.id}`} 
+                            className="text-blue-600 hover:underline text-xs font-medium"
+                          >
+                            Edit
+                          </Link>
+                          <button 
+                            onClick={() => deleteProduct(product.id, product.name)} 
+                            className="text-red-600 hover:underline text-xs font-medium"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

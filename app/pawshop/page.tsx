@@ -8,7 +8,11 @@ import { supabase } from '@/lib/supabase';
 interface Variation {
   size: string;
   price: number;
+  compare_price?: number;
   stock: number;
+  in_stock: boolean;
+  sku?: string;
+  weight?: string;
 }
 
 interface Product {
@@ -41,25 +45,25 @@ export default function PawshopPage() {
   useEffect(() => {
     loadProducts();
     updateCartCount();
-    
+   
     window.addEventListener('cartUpdated', updateCartCount);
     return () => window.removeEventListener('cartUpdated', updateCartCount);
   }, []);
 
   const loadProducts = async () => {
     setLoading(true);
-    
+   
     const { data: productsData } = await supabase
       .from('products')
       .select('*')
       .order('created_at', { ascending: false });
-    
+   
     setProducts((productsData as Product[]) || []);
-    
-    const uniqueCategories = productsData 
+   
+    const uniqueCategories = productsData
       ? ['all', ...new Set(productsData.map((p: any) => p.category))]
       : ['all'];
-    
+   
     setCategories(uniqueCategories);
     setLoading(false);
   };
@@ -75,12 +79,12 @@ export default function PawshopPage() {
           .select('*')
           .eq('category', selectedCategory)
           .order('created_at', { ascending: false });
-        
+       
         setProducts((data as Product[]) || []);
         setLoading(false);
       }
     };
-    
+   
     filterProducts();
   }, [selectedCategory]);
 
@@ -90,16 +94,16 @@ export default function PawshopPage() {
     setCartCount(count);
   };
 
-  // Helper to check if product has any stock (including variations)
+  // Improved stock helper - respects per-variation in_stock
   const hasStock = (product: Product): boolean => {
     if (product.variations && product.variations.length > 0) {
-      return product.variations.some(v => v.stock > 0);
+      return product.variations.some(v => v.in_stock === true && v.stock > 0);
     }
     return product.in_stock && product.stock > 0;
   };
 
   // Filter by search
-  const filteredProducts = products.filter(product => 
+  const filteredProducts = products.filter(product =>
     product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     product.description?.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -132,7 +136,7 @@ export default function PawshopPage() {
               <h1 className="text-3xl md:text-4xl font-bold">Dsire Pawshop</h1>
               <p className="text-gray-600">Everything your Boerboel needs</p>
             </div>
-            
+           
             <div className="flex items-center gap-4">
               {/* Search Bar */}
               <input
@@ -142,7 +146,7 @@ export default function PawshopPage() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full md:w-64 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-black"
               />
-              
+             
               {/* Cart Icon */}
               <Link href="/pawshop/cart" className="relative">
                 <div className="bg-black text-white p-3 rounded-full hover:bg-gray-800 transition">
@@ -183,7 +187,7 @@ export default function PawshopPage() {
         {filteredProducts.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-gray-500 text-lg">No products found</p>
-            <button 
+            <button
               onClick={() => {
                 setSelectedCategory('all');
                 setSearchQuery('');
@@ -203,7 +207,7 @@ export default function PawshopPage() {
                 {filteredProducts.filter(p => p.variations?.length).length} products have size options
               </p>
             </div>
-            
+           
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
               {filteredProducts.map((product) => (
                 <ProductCard key={product.id} product={product} />

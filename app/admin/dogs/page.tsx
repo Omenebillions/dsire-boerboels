@@ -12,18 +12,8 @@ interface Dog {
   price?: number;
   age?: string;
   color?: string;
-  weight?: string;
-  height?: string;
-  description?: string;
   images?: string[];
-  pedigree?: string;
-  parents?: string;
   featured?: boolean;
-  next_heat?: string;
-  last_heat?: string;
-  litter_count?: number;
-  breeding_status?: string;
-  preferred_stud?: string;
   created_at?: string;
 }
 
@@ -33,6 +23,27 @@ export default function AdminDogsPage() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Reservation modal state
+  const [showReservationModal, setShowReservationModal] = useState(false);
+  const [selectedDog, setSelectedDog] = useState<Dog | null>(null);
+  const [reservationForm, setReservationForm] = useState({
+    customer_name: '',
+    customer_phone: '',
+    customer_email: '',
+    deposit_amount: 100000,
+    payment_method: 'transfer',
+    notes: ''
+  });
+  const [submitting, setSubmitting] = useState(false);
+  
+  // Confirmation modal state
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [pendingReservation, setPendingReservation] = useState<any>(null);
+  
+  // Success modal
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [lastReservation, setLastReservation] = useState<any>(null);
 
   useEffect(() => {
     fetchDogs();
@@ -49,64 +60,193 @@ export default function AdminDogsPage() {
     setLoading(false);
   };
 
-  const updateStatus = async (id: number, newStatus: string) => {
-    const { data: dog } = await supabase
-      .from('dogs')
-      .select('name, price, status')
-      .eq('id', id)
-      .single();
+  // Open reservation form when "Reserved" is selected
+  const handleReserveClick = (dog: Dog) => {
+    setSelectedDog(dog);
+    setReservationForm({
+      customer_name: '',
+      customer_phone: '',
+      customer_email: '',
+      deposit_amount: 100000,
+      payment_method: 'transfer',
+      notes: ''
+    });
+    setShowReservationModal(true);
+  };
 
-    if (!dog) return;
+  // Generate unique reservation reference
+  const generateReference = () => {
+    return `RES-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+  };
 
-    const { error } = await supabase
-      .from('dogs')
-      .update({ status: newStatus })
-      .eq('id', id);
+  // Submit reservation
+  const submitReservation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedDog) return;
     
-    if (!error) {
-      const today = new Date().toISOString().split('T')[0];
-      const DEPOSIT = 100000;
+    setSubmitting(true);
+    
+    const reference = generateReference();
+    const totalPrice = selectedDog.price || 0;
+    const depositAmount = reservationForm.deposit_amount;
+    const remainingBalance = totalPrice - depositAmount;
+    const today = new Date().toISOString().split('T')[0];
+    
+    try {
+      // 1. Insert into reservations table
+      const { data: reservation, error: reservationError } = await supabase
+        .from('reservations')
+        .insert([{
+          reference: reference,
+          dog_id: selectedDog.id,
+          dog_name: selectedDog.name,
+          customer_name: reservationForm.customer_name,
+          customer_email: reservationForm.customer_email || null,
+          customer_phone: reservationForm.customer_phone,
+          deposit_amount: depositAmount,
+          total_price: totalPrice,
+          remaining_balance: remainingBalance,
+          status: 'pending',
+          payment_method: reservationForm.payment_method,
+          payment_status: 'partial',
+          reservation_date: today,
+          notes: reservationForm.notes || null
+        }])
+        .select()
+        .single();
+      
+      if (reservationError) throw reservationError;
+      
+      // 2. Update dog status to 'reserved'
+      await supabase
+        .from('dogs')
+        .update({ status: 'reserved' })
+        .eq('id', selectedDog.id);
+      
+      // 3. Insert deposit into sales table
+      await supabase.from('sales').insert([{
+        source: 'dog_reserve',
+        item_type: 'dog',
+        item_id: selectedDog.id,
+        item_name: selectedDog.name,
+        price: depositAmount,
+        customer_name: reservationForm.customer_name,
+        customer_phone: reservationForm.customer_phone,
+        payment_status: 'partial',
+        sale_date: today,
+        notes: `Reservation ${reference} - Deposit for ${selectedDog.name}`
+      }]);
+      
+      setLastReservation(reservation);
+      setShowReservationModal(false);
+      setShowSuccessModal(true);
+      
+      fetchDogs();
+      
+    } catch (error: any) {
+      console.error('Error creating reservation:', error);
+      alert('Error creating reservation: ' + error.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
-      if (newStatus === 'reserved') {
+  // Confirm reservation and complete sale
+  const confirmReservationAndSell = async () => {
+    if (!pendingReservation) return;
+    
+    setSubmitting(true);
+    const today = new Date().toISOString().split('T')[0];
+    
+    try {
+      // 1. Update reservation status to 'completed'
+      await supabase
+        .from('reservations')
+        .update({ 
+          status: 'completed',
+          confirmed_at: new Date().toISOString()
+        })
+        .eq('id', pendingReservation.id);
+      
+      // 2. Update dog status to 'sold'
+      await supabase
+        .from('dogs')
+        .update({ status: 'sold' })
+        .eq('id', pendingReservation.dog_id);
+      
+      // 3. Insert final payment into sales table
+      if (pendingReservation.remaining_balance > 0) {
         await supabase.from('sales').insert([{
+          source: 'dog_sold',
+          item_type: 'dog',
+          item_id: pendingReservation.dog_id,
+          item_name: pendingReservation.dog_name,
+          price: pendingReservation.remaining_balance,
+          customer_name: pendingReservation.customer_name,
+          customer_phone: pendingReservation.customer_phone,
+          payment_status: 'paid',
+          sale_date: today,
+          notes: `Reservation ${pendingReservation.reference} - Final payment for ${pendingReservation.dog_name}`
+        }]);
+      }
+      
+      alert(`✅ ${pendingReservation.dog_name} marked as SOLD. Final payment recorded.`);
+      setShowConfirmModal(false);
+      setPendingReservation(null);
+      fetchDogs();
+      
+    } catch (error: any) {
+      console.error('Error confirming sale:', error);
+      alert('Error confirming sale: ' + error.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const updateStatus = async (id: number, newStatus: string, dog: Dog) => {
+    if (newStatus === 'reserved') {
+      handleReserveClick(dog);
+    } else if (newStatus === 'sold') {
+      // Check if there's a pending reservation for this dog
+      const { data: reservation } = await supabase
+        .from('reservations')
+        .select('*')
+        .eq('dog_id', id)
+        .eq('status', 'pending')
+        .single();
+      
+      if (reservation) {
+        setPendingReservation(reservation);
+        setShowConfirmModal(true);
+      } else {
+        // Direct sale without reservation
+        const today = new Date().toISOString().split('T')[0];
+        await supabase.from('sales').insert([{
+          source: 'dog_sold',
           item_type: 'dog',
           item_id: id,
           item_name: dog.name,
-          price: DEPOSIT,
+          price: dog.price || 0,
           customer_name: 'Walk-in Customer',
-          payment_status: 'partial',
-          source: 'dog_reserve',
+          payment_status: 'paid',
           sale_date: today,
-          notes: `Deposit for ${dog.name}`
+          notes: `Direct sale for ${dog.name}`
         }]);
-
-        alert(`✅ ${dog.name} marked as RESERVED. ₦100,000 deposit recorded.`);
-      }
-      
-      if (newStatus === 'sold') {
-        const finalAmount = dog.status === 'reserved' 
-          ? (dog.price || 0) - DEPOSIT 
-          : (dog.price || 0);
-
-        if (finalAmount > 0) {
-          await supabase.from('sales').insert([{
-            item_type: 'dog',
-            item_id: id,
-            item_name: dog.name,
-            price: finalAmount,
-            customer_name: 'Walk-in Customer',
-            payment_status: 'paid',
-            source: 'dog_sold',
-            sale_date: today,
-            notes: dog.status === 'reserved' 
-              ? `Final payment for ${dog.name} (balance after deposit)`
-              : `Full sale for ${dog.name}`
-          }]);
-        }
         
-        alert(`✅ ${dog.name} marked as SOLD. Final payment recorded.`);
+        await supabase
+          .from('dogs')
+          .update({ status: 'sold' })
+          .eq('id', id);
+        
+        alert(`✅ ${dog.name} marked as SOLD. Full payment recorded.`);
+        fetchDogs();
       }
-      
+    } else {
+      // Other status changes (available, retired)
+      await supabase
+        .from('dogs')
+        .update({ status: newStatus })
+        .eq('id', id);
       fetchDogs();
     }
   };
@@ -164,11 +304,11 @@ export default function AdminDogsPage() {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
+        {/* Header - same as before */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">🐕 Dog Management</h1>
-            <p className="text-gray-600 text-sm mt-1">Manage all dogs, puppies, studs, and females</p>
+            <p className="text-gray-600 text-sm mt-1">Manage all dogs, reservations, and sales</p>
           </div>
           <Link 
             href="/admin/dogs/new" 
@@ -178,7 +318,7 @@ export default function AdminDogsPage() {
           </Link>
         </div>
 
-        {/* Stats Cards */}
+        {/* Stats Cards - same as before */}
         <div className="grid grid-cols-2 md:grid-cols-7 gap-3 mb-6 text-center">
           {[
             { label: 'Total', val: stats.total, color: 'bg-white' },
@@ -196,7 +336,7 @@ export default function AdminDogsPage() {
           ))}
         </div>
 
-        {/* Filters */}
+        {/* Filters - same as before */}
         <div className="bg-white p-4 rounded-lg shadow-sm mb-6 grid md:grid-cols-3 gap-4">
           <input 
             type="text" 
@@ -228,7 +368,7 @@ export default function AdminDogsPage() {
           </select>
         </div>
 
-        {/* Dogs Table */}
+        {/* Dogs Table - Updated status dropdown */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1000px]">
@@ -279,7 +419,7 @@ export default function AdminDogsPage() {
                       <div className="flex flex-col gap-2">
                         <select 
                           value={dog.status} 
-                          onChange={(e) => updateStatus(dog.id, e.target.value)}
+                          onChange={(e) => updateStatus(dog.id, e.target.value, dog)}
                           className="text-xs border rounded-lg p-1.5 focus:ring-1 focus:ring-blue-500"
                         >
                           <option value="available">✅ Available</option>
@@ -313,6 +453,203 @@ export default function AdminDogsPage() {
           )}
         </div>
       </div>
+
+      {/* Reservation Modal */}
+      {showReservationModal && selectedDog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <h2 className="text-2xl font-bold mb-2">Reserve {selectedDog.name}</h2>
+              <p className="text-gray-600 mb-4">Complete the reservation details below</p>
+              
+              <form onSubmit={submitReservation} className="space-y-4">
+                <div>
+                  <label className="block font-medium mb-1">Dog Price</label>
+                  <input
+                    type="text"
+                    readOnly
+                    value={`₦${(selectedDog.price || 0).toLocaleString()}`}
+                    className="w-full p-2 border rounded bg-gray-50"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block font-medium mb-1">Customer Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={reservationForm.customer_name}
+                    onChange={(e) => setReservationForm({...reservationForm, customer_name: e.target.value})}
+                    className="w-full p-2 border rounded"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block font-medium mb-1">Phone Number *</label>
+                  <input
+                    type="tel"
+                    required
+                    value={reservationForm.customer_phone}
+                    onChange={(e) => setReservationForm({...reservationForm, customer_phone: e.target.value})}
+                    className="w-full p-2 border rounded"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block font-medium mb-1">Email (Optional)</label>
+                  <input
+                    type="email"
+                    value={reservationForm.customer_email}
+                    onChange={(e) => setReservationForm({...reservationForm, customer_email: e.target.value})}
+                    className="w-full p-2 border rounded"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block font-medium mb-1">Deposit Amount (₦)</label>
+                  <input
+                    type="number"
+                    required
+                    value={reservationForm.deposit_amount}
+                    onChange={(e) => setReservationForm({...reservationForm, deposit_amount: Number(e.target.value)})}
+                    className="w-full p-2 border rounded"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Default: ₦100,000</p>
+                </div>
+                
+                <div>
+                  <label className="block font-medium mb-1">Payment Method</label>
+                  <select
+                    value={reservationForm.payment_method}
+                    onChange={(e) => setReservationForm({...reservationForm, payment_method: e.target.value})}
+                    className="w-full p-2 border rounded"
+                  >
+                    <option value="transfer">Bank Transfer</option>
+                    <option value="cash">Cash</option>
+                    <option value="pos">POS</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block font-medium mb-1">Notes</label>
+                  <textarea
+                    rows={2}
+                    value={reservationForm.notes}
+                    onChange={(e) => setReservationForm({...reservationForm, notes: e.target.value})}
+                    className="w-full p-2 border rounded"
+                    placeholder="Any special notes..."
+                  />
+                </div>
+                
+                <div className="bg-yellow-50 p-3 rounded-lg">
+                  <p className="text-sm font-medium">Summary:</p>
+                  <p className="text-sm">Total Price: ₦{(selectedDog.price || 0).toLocaleString()}</p>
+                  <p className="text-sm">Deposit: ₦{reservationForm.deposit_amount.toLocaleString()}</p>
+                  <p className="text-sm font-bold">Remaining: ₦{((selectedDog.price || 0) - reservationForm.deposit_amount).toLocaleString()}</p>
+                </div>
+                
+                <div className="flex gap-3 pt-4">
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="flex-1 bg-yellow-500 text-black py-2 rounded-lg font-bold hover:bg-yellow-400 disabled:opacity-50"
+                  >
+                    {submitting ? 'Creating...' : 'Create Reservation'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowReservationModal(false)}
+                    className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Success Modal */}
+      {showSuccessModal && lastReservation && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full">
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-3xl">✅</span>
+              </div>
+              <h2 className="text-2xl font-bold mb-2">Reservation Created!</h2>
+              <p className="text-gray-600 mb-4">Reservation details have been saved.</p>
+              
+              <div className="bg-gray-50 p-4 rounded-lg mb-4">
+                <p className="text-sm font-mono font-bold">{lastReservation.reference}</p>
+                <p className="text-sm mt-2">Dog: {lastReservation.dog_name}</p>
+                <p className="text-sm">Customer: {lastReservation.customer_name}</p>
+                <p className="text-sm">Deposit: ₦{lastReservation.deposit_amount.toLocaleString()}</p>
+                <p className="text-sm font-bold">Remaining: ₦{lastReservation.remaining_balance.toLocaleString()}</p>
+              </div>
+              
+              <p className="text-sm text-gray-500 mb-4">
+                When the customer pays the remaining balance, go to <strong>Reservations</strong> page to mark as sold.
+              </p>
+              
+              <div className="flex gap-3">
+                <Link
+                  href="/admin/reservations"
+                  className="flex-1 bg-blue-600 text-white py-2 rounded-lg font-bold hover:bg-blue-700"
+                >
+                  View Reservations
+                </Link>
+                <button
+                  onClick={() => setShowSuccessModal(false)}
+                  className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Sale Modal */}
+      {showConfirmModal && pendingReservation && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full">
+            <div className="p-6">
+              <h2 className="text-2xl font-bold mb-2">Confirm Sale</h2>
+              <p className="text-gray-600 mb-4">Complete the sale for this reservation</p>
+              
+              <div className="bg-gray-50 p-4 rounded-lg mb-4">
+                <p className="font-medium">Reservation: {pendingReservation.reference}</p>
+                <p className="text-sm mt-2">Dog: {pendingReservation.dog_name}</p>
+                <p className="text-sm">Customer: {pendingReservation.customer_name}</p>
+                <p className="text-sm">Phone: {pendingReservation.customer_phone}</p>
+                <p className="text-sm">Deposit Paid: ₦{pendingReservation.deposit_amount.toLocaleString()}</p>
+                <p className="text-sm font-bold text-green-600">
+                  Remaining Balance: ₦{pendingReservation.remaining_balance.toLocaleString()}
+                </p>
+              </div>
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={confirmReservationAndSell}
+                  disabled={submitting}
+                  className="flex-1 bg-green-600 text-white py-2 rounded-lg font-bold hover:bg-green-700 disabled:opacity-50"
+                >
+                  {submitting ? 'Processing...' : 'Confirm Sale & Record Payment'}
+                </button>
+                <button
+                  onClick={() => setShowConfirmModal(false)}
+                  className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
