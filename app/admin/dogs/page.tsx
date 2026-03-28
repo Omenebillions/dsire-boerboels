@@ -79,7 +79,7 @@ export default function AdminDogsPage() {
     return `RES-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
   };
 
-  // Submit reservation
+  // Submit reservation - FIXED with proper error handling for deposit
   const submitReservation = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedDog) return;
@@ -123,8 +123,9 @@ export default function AdminDogsPage() {
         .update({ status: 'reserved' })
         .eq('id', selectedDog.id);
       
-      // 3. Insert deposit into sales table
-      await supabase.from('sales').insert([{
+      // 3. Insert deposit into sales table - WITH ERROR CHECKING
+      console.log('📝 Inserting deposit into sales...');
+      const { error: saleError } = await supabase.from('sales').insert([{
         source: 'dog_reserve',
         item_type: 'dog',
         item_id: selectedDog.id,
@@ -133,9 +134,17 @@ export default function AdminDogsPage() {
         customer_name: reservationForm.customer_name,
         customer_phone: reservationForm.customer_phone,
         payment_status: 'partial',
+        payment_method: reservationForm.payment_method,
         sale_date: today,
         notes: `Reservation ${reference} - Deposit for ${selectedDog.name}`
       }]);
+      
+      if (saleError) {
+        console.error('❌ DEPOSIT INSERT FAILED:', saleError);
+        alert(`⚠️ Reservation created but deposit was NOT recorded!\n\nError: ${saleError.message}\n\nPlease check sales table.`);
+      } else {
+        console.log('✅ Deposit recorded successfully for:', selectedDog.name);
+      }
       
       setLastReservation(reservation);
       setShowReservationModal(false);
@@ -176,7 +185,7 @@ export default function AdminDogsPage() {
       
       // 3. Insert final payment into sales table
       if (pendingReservation.remaining_balance > 0) {
-        await supabase.from('sales').insert([{
+        const { error: saleError } = await supabase.from('sales').insert([{
           source: 'dog_sold',
           item_type: 'dog',
           item_id: pendingReservation.dog_id,
@@ -185,9 +194,17 @@ export default function AdminDogsPage() {
           customer_name: pendingReservation.customer_name,
           customer_phone: pendingReservation.customer_phone,
           payment_status: 'paid',
+          payment_method: pendingReservation.payment_method,
           sale_date: today,
           notes: `Reservation ${pendingReservation.reference} - Final payment for ${pendingReservation.dog_name}`
         }]);
+        
+        if (saleError) {
+          console.error('❌ Final payment insert failed:', saleError);
+          alert('Warning: Final payment was not recorded. Please check sales table.');
+        } else {
+          console.log('✅ Final payment recorded for:', pendingReservation.dog_name);
+        }
       }
       
       alert(`✅ ${pendingReservation.dog_name} marked as SOLD. Final payment recorded.`);
@@ -304,7 +321,7 @@ export default function AdminDogsPage() {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Header - same as before */}
+        {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">🐕 Dog Management</h1>
@@ -318,7 +335,7 @@ export default function AdminDogsPage() {
           </Link>
         </div>
 
-        {/* Stats Cards - same as before */}
+        {/* Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-7 gap-3 mb-6 text-center">
           {[
             { label: 'Total', val: stats.total, color: 'bg-white' },
@@ -336,7 +353,7 @@ export default function AdminDogsPage() {
           ))}
         </div>
 
-        {/* Filters - same as before */}
+        {/* Filters */}
         <div className="bg-white p-4 rounded-lg shadow-sm mb-6 grid md:grid-cols-3 gap-4">
           <input 
             type="text" 
@@ -368,7 +385,7 @@ export default function AdminDogsPage() {
           </select>
         </div>
 
-        {/* Dogs Table - Updated status dropdown */}
+        {/* Dogs Table */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1000px]">
@@ -380,7 +397,7 @@ export default function AdminDogsPage() {
                   <th className="p-4 text-left text-sm font-semibold text-gray-600">Price</th>
                   <th className="p-4 text-left text-sm font-semibold text-gray-600">Details</th>
                   <th className="p-4 text-left text-sm font-semibold text-gray-600">Actions</th>
-                </tr>
+                 </tr>
               </thead>
               <tbody>
                 {filteredDogs.map((dog) => (

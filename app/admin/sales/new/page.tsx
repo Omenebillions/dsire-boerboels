@@ -1,4 +1,3 @@
-// app/admin/sales/new/page.tsx
 "use client";
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -25,7 +24,7 @@ interface Product {
   name: string;
   price: number;
   cost?: number;
-  stock?: number;  // ← ADDED THIS LINE
+  stock?: number;
 }
 
 export default function NewSalePage() {
@@ -34,6 +33,7 @@ export default function NewSalePage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [dogs, setDogs] = useState<Dog[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [balanceDue, setBalanceDue] = useState(0);
   
   const [formData, setFormData] = useState({
     item_type: 'puppy',
@@ -49,7 +49,8 @@ export default function NewSalePage() {
     payment_status: 'paid',
     deposit_amount: '0',
     sale_date: new Date().toISOString().split('T')[0],
-    notes: ''
+    notes: '',
+    due_date: ''
   });
 
   useEffect(() => {
@@ -75,6 +76,17 @@ export default function NewSalePage() {
     }
   }, [formData.item_id, formData.item_type]);
 
+  // Calculate balance when deposit amount or price changes
+  useEffect(() => {
+    if (formData.payment_status === 'partial') {
+      const totalPrice = Number(formData.price) || 0;
+      const deposit = Number(formData.deposit_amount) || 0;
+      setBalanceDue(totalPrice - deposit);
+    } else {
+      setBalanceDue(0);
+    }
+  }, [formData.price, formData.deposit_amount, formData.payment_status]);
+
   const fetchData = async () => {
     // Fetch customers
     const { data: customersData } = await supabase
@@ -94,7 +106,7 @@ export default function NewSalePage() {
     // Fetch products
     const { data: productsData } = await supabase
       .from('products')
-      .select('id, name, price, cost, stock')  // ← ADDED stock HERE
+      .select('id, name, price, cost, stock')
       .eq('in_stock', true)
       .order('name');
     setProducts(productsData || []);
@@ -134,6 +146,10 @@ export default function NewSalePage() {
       customerId = newCustomer?.id || null;
     }
 
+    const totalPrice = Number(formData.price);
+    const depositAmount = Number(formData.deposit_amount);
+    const isPartial = formData.payment_status === 'partial';
+    
     const saleData = {
       item_type: formData.item_type,
       item_id: Number(formData.item_id),
@@ -143,42 +159,79 @@ export default function NewSalePage() {
       customer_phone: formData.customer_phone || null,
       customer_email: formData.customer_email || null,
       quantity: Number(formData.quantity),
-      price: Number(formData.price),
+      price: isPartial ? depositAmount : totalPrice,
       cost: itemCost,
-      profit: Number(formData.price) - itemCost,
+      profit: (isPartial ? depositAmount : totalPrice) - itemCost,
       payment_method: formData.payment_method,
       payment_status: formData.payment_status,
-      deposit_amount: Number(formData.deposit_amount),
+      deposit_amount: depositAmount,
       sale_date: formData.sale_date,
-      notes: formData.notes || null
+      notes: isPartial 
+        ? `${formData.notes || ''} Partial payment: ₦${depositAmount.toLocaleString()} of ₦${totalPrice.toLocaleString()}. Balance: ₦${balanceDue.toLocaleString()}`
+        : formData.notes || null
     };
 
-    const { error } = await supabase.from('sales').insert([saleData]);
+    // Insert into sales table
+    const { data: saleResult, error: saleError } = await supabase
+      .from('sales')
+      .insert([saleData])
+      .select()
+      .single();
 
-    if (error) {
-      alert('Error recording sale: ' + error.message);
-    } else {
-      // Update item status if needed
-      if (formData.item_type === 'puppy') {
-        await supabase
-          .from('dogs')
-          .update({ status: 'sold' })
-          .eq('id', formData.item_id);
-      } else if (formData.item_type === 'product') {
-        const product = products.find(p => p.id === Number(formData.item_id));
-        const newStock = (product?.stock || 1) - Number(formData.quantity);
-        await supabase
-          .from('products')
-          .update({ 
-            stock: newStock,
-            in_stock: newStock > 0
-          })
-          .eq('id', formData.item_id);
-      }
-
-      alert('Sale recorded successfully!');
-      router.push('/admin/sales');
+    if (saleError) {
+      alert('Error recording sale: ' + saleError.message);
+      setLoading(false);
+      return;
     }
+
+    // If partial payment, create debtor record
+    if (isPartial && balanceDue > 0) {
+      const debtorData = {
+        sale_id: saleResult.id,
+        customer_name: formData.customer_name || 'Walk-in Customer',
+        customer_phone: formData.customer_phone || null,
+        customer_email: formData.customer_email || null,
+        total_amount: totalPrice,
+        amount_paid: depositAmount,
+        balance_due: balanceDue,
+        status: 'pending',
+        due_date: formData.due_date || null,
+        notes: `Partial payment for ${itemName}. Original sale: ${saleResult.id}`
+      };
+
+      const { error: debtorError } = await supabase
+        .from('debtors')
+        .insert([debtorData]);
+
+      if (debtorError) {
+        console.error('Error creating debtor record:', debtorError);
+        alert('⚠️ Sale recorded but debtor record failed. Please check debtors table.');
+      } else {
+        alert(`✅ Sale recorded! Partial payment: ₦${depositAmount.toLocaleString()}. Balance due: ₦${balanceDue.toLocaleString()} added to debtors.`);
+      }
+    } else {
+      alert('Sale recorded successfully!');
+    }
+
+    // Update item status if needed
+    if (formData.item_type === 'puppy') {
+      await supabase
+        .from('dogs')
+        .update({ status: 'sold' })
+        .eq('id', formData.item_id);
+    } else if (formData.item_type === 'product') {
+      const product = products.find(p => p.id === Number(formData.item_id));
+      const newStock = (product?.stock || 1) - Number(formData.quantity);
+      await supabase
+        .from('products')
+        .update({ 
+          stock: newStock,
+          in_stock: newStock > 0
+        })
+        .eq('id', formData.item_id);
+    }
+
+    router.push('/admin/sales');
     setLoading(false);
   };
 
@@ -253,14 +306,14 @@ export default function NewSalePage() {
                 />
               </div>
               <div>
-                <label className="block font-medium mb-1">Sale Price (₦) *</label>
+                <label className="block font-medium mb-1">Total Price (₦) *</label>
                 <input
                   type="number"
                   required
                   value={formData.price}
                   onChange={(e) => setFormData({...formData, price: e.target.value})}
                   className="w-full p-2 border rounded"
-                  placeholder="0"
+                  placeholder="Total amount"
                 />
               </div>
             </div>
@@ -367,7 +420,12 @@ export default function NewSalePage() {
                 <select
                   required
                   value={formData.payment_status}
-                  onChange={(e) => setFormData({...formData, payment_status: e.target.value})}
+                  onChange={(e) => {
+                    setFormData({...formData, payment_status: e.target.value});
+                    if (e.target.value !== 'partial') {
+                      setFormData(prev => ({...prev, deposit_amount: '0'}));
+                    }
+                  }}
                   className="w-full p-2 border rounded"
                 >
                   <option value="paid">✅ Paid in Full</option>
@@ -378,16 +436,33 @@ export default function NewSalePage() {
             </div>
 
             {formData.payment_status === 'partial' && (
-              <div>
-                <label className="block font-medium mb-1">Deposit Amount (₦)</label>
-                <input
-                  type="number"
-                  value={formData.deposit_amount}
-                  onChange={(e) => setFormData({...formData, deposit_amount: e.target.value})}
-                  className="w-full p-2 border rounded"
-                  placeholder="50000"
-                />
-              </div>
+              <>
+                <div>
+                  <label className="block font-medium mb-1">Deposit / Partial Amount (₦)</label>
+                  <input
+                    type="number"
+                    value={formData.deposit_amount}
+                    onChange={(e) => setFormData({...formData, deposit_amount: e.target.value})}
+                    className="w-full p-2 border rounded"
+                    placeholder="Amount customer is paying now"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Total: ₦{Number(formData.price).toLocaleString()} | 
+                    Balance Due: ₦{balanceDue.toLocaleString()}
+                  </p>
+                </div>
+                
+                <div>
+                  <label className="block font-medium mb-1">Due Date (Optional)</label>
+                  <input
+                    type="date"
+                    value={formData.due_date}
+                    onChange={(e) => setFormData({...formData, due_date: e.target.value})}
+                    className="w-full p-2 border rounded"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">When is the balance expected?</p>
+                </div>
+              </>
             )}
 
             <div>
@@ -412,6 +487,33 @@ export default function NewSalePage() {
               />
             </div>
           </div>
+
+          {/* Summary for Partial Payment */}
+          {formData.payment_status === 'partial' && balanceDue > 0 && (
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+              <h3 className="font-bold text-blue-800 mb-2">📋 Payment Summary</h3>
+              <div className="space-y-1 text-sm">
+                <p className="flex justify-between">
+                  <span>Total Amount:</span>
+                  <span className="font-bold">₦{Number(formData.price).toLocaleString()}</span>
+                </p>
+                <p className="flex justify-between">
+                  <span>Amount Paid Now:</span>
+                  <span className="font-bold text-green-600">₦{Number(formData.deposit_amount).toLocaleString()}</span>
+                </p>
+                <p className="flex justify-between border-t pt-2 mt-2">
+                  <span className="font-bold">Balance Due:</span>
+                  <span className="font-bold text-red-600">₦{balanceDue.toLocaleString()}</span>
+                </p>
+                {formData.due_date && (
+                  <p className="text-xs text-gray-500 mt-2">Due Date: {new Date(formData.due_date).toLocaleDateString()}</p>
+                )}
+              </div>
+              <p className="text-xs text-blue-600 mt-3">
+                This balance will be added to the Debtors table for tracking.
+              </p>
+            </div>
+          )}
 
           {/* Action Buttons */}
           <div className="flex gap-3 pt-4 border-t">

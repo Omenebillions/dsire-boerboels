@@ -36,7 +36,16 @@ export default function AdminReservationsPage() {
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [editForm, setEditForm] = useState({
+    customer_name: '',
+    customer_phone: '',
+    customer_email: '',
+    deposit_amount: 0,
+    notes: ''
+  });
 
   useEffect(() => {
     fetchReservations();
@@ -63,10 +72,124 @@ export default function AdminReservationsPage() {
 
     if (error) {
       console.error('Error fetching reservations:', error);
+      alert('Error loading reservations: ' + error.message);
     } else {
       setReservations(data || []);
     }
     setLoading(false);
+  };
+
+  // Edit Reservation
+  const openEditModal = (reservation: Reservation) => {
+    setSelectedReservation(reservation);
+    setEditForm({
+      customer_name: reservation.customer_name,
+      customer_phone: reservation.customer_phone,
+      customer_email: reservation.customer_email || '',
+      deposit_amount: reservation.deposit_amount,
+      notes: reservation.notes || ''
+    });
+    setShowEditModal(true);
+  };
+
+  const updateReservation = async () => {
+    if (!selectedReservation) return;
+    setSubmitting(true);
+
+    try {
+      const newDepositAmount = editForm.deposit_amount;
+      const newRemainingBalance = selectedReservation.total_price - newDepositAmount;
+
+      // 1. Update reservation
+      const { error: updateError } = await supabase
+        .from('reservations')
+        .update({
+          customer_name: editForm.customer_name,
+          customer_phone: editForm.customer_phone,
+          customer_email: editForm.customer_email || null,
+          deposit_amount: newDepositAmount,
+          remaining_balance: newRemainingBalance,
+          notes: editForm.notes || null
+        })
+        .eq('id', selectedReservation.id);
+
+      if (updateError) throw updateError;
+
+      // 2. Update the corresponding sales record for deposit
+      const { error: saleError } = await supabase
+        .from('sales')
+        .update({
+          price: newDepositAmount,
+          customer_name: editForm.customer_name,
+          customer_phone: editForm.customer_phone,
+          notes: `EDITED: ${selectedReservation.reference} - Deposit updated from ₦${selectedReservation.deposit_amount.toLocaleString()} to ₦${newDepositAmount.toLocaleString()}`
+        })
+        .eq('source', 'dog_reserve')
+        .eq('item_id', selectedReservation.dog_id)
+        .eq('payment_status', 'partial');
+
+      if (saleError) console.error('Error updating sales record:', saleError);
+
+      alert(`✅ Reservation ${selectedReservation.reference} updated successfully!`);
+      fetchReservations();
+      setShowEditModal(false);
+      setSelectedReservation(null);
+
+    } catch (error: any) {
+      console.error('Error updating reservation:', error);
+      alert('Error updating reservation: ' + error.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Delete Reservation (only if pending)
+  const deleteReservation = async () => {
+    if (!selectedReservation) return;
+    if (selectedReservation.status !== 'pending') {
+      alert('Only pending reservations can be deleted. For completed/cancelled, use cancellation instead.');
+      return;
+    }
+    
+    setSubmitting(true);
+
+    try {
+      // 1. Delete the corresponding sales record for deposit
+      const { error: saleError } = await supabase
+        .from('sales')
+        .delete()
+        .eq('source', 'dog_reserve')
+        .eq('item_id', selectedReservation.dog_id)
+        .eq('payment_status', 'partial')
+        .eq('item_name', selectedReservation.dog_name);
+
+      if (saleError) console.error('Error deleting sales record:', saleError);
+
+      // 2. Delete the reservation
+      const { error: deleteError } = await supabase
+        .from('reservations')
+        .delete()
+        .eq('id', selectedReservation.id);
+
+      if (deleteError) throw deleteError;
+
+      // 3. Reset dog status back to available
+      await supabase
+        .from('dogs')
+        .update({ status: 'available' })
+        .eq('id', selectedReservation.dog_id);
+
+      alert(`✅ Reservation ${selectedReservation.reference} deleted successfully! Dog is now available.`);
+      fetchReservations();
+      setShowDeleteModal(false);
+      setSelectedReservation(null);
+
+    } catch (error: any) {
+      console.error('Error deleting reservation:', error);
+      alert('Error deleting reservation: ' + error.message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const completeReservation = async (reservation: Reservation) => {
@@ -147,8 +270,7 @@ export default function AdminReservationsPage() {
 
       if (dogError) throw dogError;
 
-      // 3. Optional: Remove deposit from sales? (Keep for accounting, add note)
-      // We keep the deposit in sales but mark as cancelled in notes
+      // 3. Mark the deposit as cancelled in sales
       const { error: updateSaleError } = await supabase
         .from('sales')
         .update({ 
@@ -355,7 +477,13 @@ export default function AdminReservationsPage() {
                     </td>
                     <td className="p-4">
                       {res.status === 'pending' && (
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            onClick={() => openEditModal(res)}
+                            className="bg-blue-600 text-white px-3 py-1 rounded-lg text-xs font-medium hover:bg-blue-700 transition"
+                          >
+                            Edit
+                          </button>
                           <button
                             onClick={() => {
                               setSelectedReservation(res);
@@ -370,9 +498,18 @@ export default function AdminReservationsPage() {
                               setSelectedReservation(res);
                               setShowCancelModal(true);
                             }}
-                            className="bg-red-600 text-white px-3 py-1 rounded-lg text-xs font-medium hover:bg-red-700 transition"
+                            className="bg-yellow-600 text-white px-3 py-1 rounded-lg text-xs font-medium hover:bg-yellow-700 transition"
                           >
                             Cancel
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedReservation(res);
+                              setShowDeleteModal(true);
+                            }}
+                            className="bg-red-600 text-white px-3 py-1 rounded-lg text-xs font-medium hover:bg-red-700 transition"
+                          >
+                            Delete
                           </button>
                         </div>
                       )}
@@ -396,6 +533,112 @@ export default function AdminReservationsPage() {
           )}
         </div>
       </div>
+
+      {/* Edit Reservation Modal */}
+      {showEditModal && selectedReservation && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <h2 className="text-2xl font-bold mb-2">Edit Reservation</h2>
+              <p className="text-gray-600 mb-4">Update reservation details</p>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block font-medium mb-1">Reference</label>
+                  <input
+                    type="text"
+                    value={selectedReservation.reference}
+                    disabled
+                    className="w-full p-2 border rounded bg-gray-50 font-mono text-sm"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block font-medium mb-1">Dog</label>
+                  <input
+                    type="text"
+                    value={selectedReservation.dog_name}
+                    disabled
+                    className="w-full p-2 border rounded bg-gray-50"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block font-medium mb-1">Customer Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editForm.customer_name}
+                    onChange={(e) => setEditForm({...editForm, customer_name: e.target.value})}
+                    className="w-full p-2 border rounded"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block font-medium mb-1">Phone Number *</label>
+                  <input
+                    type="tel"
+                    required
+                    value={editForm.customer_phone}
+                    onChange={(e) => setEditForm({...editForm, customer_phone: e.target.value})}
+                    className="w-full p-2 border rounded"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block font-medium mb-1">Email</label>
+                  <input
+                    type="email"
+                    value={editForm.customer_email}
+                    onChange={(e) => setEditForm({...editForm, customer_email: e.target.value})}
+                    className="w-full p-2 border rounded"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block font-medium mb-1">Deposit Amount (₦)</label>
+                  <input
+                    type="number"
+                    value={editForm.deposit_amount}
+                    onChange={(e) => setEditForm({...editForm, deposit_amount: Number(e.target.value)})}
+                    className="w-full p-2 border rounded"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Total Price: ₦{selectedReservation.total_price.toLocaleString()} | 
+                    New Balance: ₦{(selectedReservation.total_price - editForm.deposit_amount).toLocaleString()}
+                  </p>
+                </div>
+                
+                <div>
+                  <label className="block font-medium mb-1">Notes</label>
+                  <textarea
+                    rows={3}
+                    value={editForm.notes}
+                    onChange={(e) => setEditForm({...editForm, notes: e.target.value})}
+                    className="w-full p-2 border rounded"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={updateReservation}
+                  disabled={submitting}
+                  className="flex-1 bg-blue-600 text-white py-2 rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {submitting ? 'Saving...' : 'Save Changes'}
+                </button>
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Confirm Complete Modal */}
       {showConfirmModal && selectedReservation && (
@@ -471,6 +714,53 @@ export default function AdminReservationsPage() {
                   className="px-4 py-2 border rounded-lg hover:bg-gray-50"
                 >
                   No, Go Back
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Delete Modal */}
+      {showDeleteModal && selectedReservation && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full">
+            <div className="p-6">
+              <h2 className="text-2xl font-bold mb-2 text-red-600">Delete Reservation</h2>
+              <p className="text-gray-600 mb-4">
+                This will permanently delete this reservation and remove the deposit from sales records.
+                <strong className="block mt-2 text-red-600">This action cannot be undone!</strong>
+              </p>
+              
+              <div className="bg-gray-50 p-4 rounded-lg mb-4 space-y-2">
+                <p><strong>Reference:</strong> <code>{selectedReservation.reference}</code></p>
+                <p><strong>Dog:</strong> {selectedReservation.dog_name}</p>
+                <p><strong>Customer:</strong> {selectedReservation.customer_name}</p>
+                <p><strong>Deposit Paid:</strong> ₦{selectedReservation.deposit_amount.toLocaleString()}</p>
+              </div>
+              
+              <div className="bg-red-50 p-3 rounded-lg mb-4">
+                <p className="text-sm text-red-800">
+                  ⚠️ Warning: This will:
+                  <br />- Delete the reservation record
+                  <br />- Remove the deposit from sales records
+                  <br />- Set the dog back to "Available" status
+                </p>
+              </div>
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={deleteReservation}
+                  disabled={submitting}
+                  className="flex-1 bg-red-600 text-white py-2 rounded-lg font-bold hover:bg-red-700 disabled:opacity-50"
+                >
+                  {submitting ? 'Processing...' : 'Yes, Permanently Delete'}
+                </button>
+                <button
+                  onClick={() => setShowDeleteModal(false)}
+                  className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+                >
+                  No, Keep It
                 </button>
               </div>
             </div>
