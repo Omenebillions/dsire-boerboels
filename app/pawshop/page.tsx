@@ -134,7 +134,7 @@ export default function PawshopPage() {
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
               <h1 className="text-3xl md:text-4xl font-bold">Dsire Pawshop</h1>
-              <p className="text-gray-600">Everything your Boerboel needs</p>
+              <p className="text-gray-600">Everything your Pet needs</p>
             </div>
            
             <div className="flex items-center gap-4">
