@@ -1,5 +1,6 @@
 // app/page.tsx
 import Link from 'next/link';
+import Image from 'next/image';
 import HeroImage from '@/app/components/HeroImage';
 import FeaturedPuppies from '@/app/components/FeaturedPuppies';
 import TestimonialCarousel from '@/app/components/TestimonialCarousel';
@@ -11,13 +12,12 @@ export default function Page() {
     <div>
       {/* HERO SECTION */}
       <section className="relative h-[80vh] w-full overflow-hidden">
-        {/* Client component handles the image with error fallback */}
         <HeroImage />
         
         {/* Dark overlay */}
         <div className="absolute inset-0 bg-gradient-to-r from-black/70 to-black/40"></div>
         
-        {/* Content - unchanged */}
+        {/* Content */}
         <div className="relative h-full max-w-7xl mx-auto px-6 flex flex-col justify-center">
           <span className="inline-block bg-yellow-500 text-black text-sm font-semibold px-4 py-2 rounded-full mb-6 w-fit">
             🏆 Premier Boerboel Kennel in Nigeria
@@ -111,6 +111,102 @@ export default function Page() {
         </div>
       </section>
 
+      {/* Available Puppies Section - Simple Image Cards with Reserve Button */}
+      <section className="bg-gray-50 py-20">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="text-center mb-12">
+            <span className="text-yellow-600 font-semibold tracking-wider text-sm">MEET OUR PUPS</span>
+            <h2 className="text-4xl md:text-5xl font-bold mt-2">Available Puppies</h2>
+            <p className="text-gray-600 mt-3 text-lg max-w-2xl mx-auto">
+              Ready to find their forever homes. Reserve your perfect companion today.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {/* Puppy 1 */}
+            <div className="group bg-white rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300">
+              <div className="relative h-80 overflow-hidden">
+                <ImageWithFallback
+                  src="p1.jpg"
+                  alt="Boerboel Puppy"
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                  fallbackSrc="p1.jpg"
+                />
+              </div>
+              <div className="p-6 text-center">
+                <h3 className="text-2xl font-bold mb-2">Male Puppies</h3>
+                <p className="text-gray-500 text-sm mb-4">
+                  Strong, healthy males from champion bloodlines. Ready for their forever homes.
+                </p>
+                <Link 
+                  href="/reserve"
+                  className="inline-block bg-gradient-to-r from-yellow-500 to-yellow-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-yellow-600 hover:to-yellow-700 transition transform hover:scale-105"
+                >
+                  Reserve a Puppy →
+                </Link>
+              </div>
+            </div>
+
+            {/* Puppy 2 */}
+            <div className="group bg-white rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300">
+              <div className="relative h-80 overflow-hidden">
+                <ImageWithFallback
+                  src="p2.jpg"
+                  alt="Boerboel Puppy"
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                  fallbackSrc="p2.jpg"
+                />
+              </div>
+              <div className="p-6 text-center">
+                <h3 className="text-2xl font-bold mb-2">Female Puppies</h3>
+                <p className="text-gray-500 text-sm mb-4">
+                  Beautiful females with excellent temperament and conformation. Family raised.
+                </p>
+                <Link 
+                  href="/reserve"
+                  className="inline-block bg-gradient-to-r from-yellow-500 to-yellow-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-yellow-600 hover:to-yellow-700 transition transform hover:scale-105"
+                >
+                  Reserve a Puppy →
+                </Link>
+              </div>
+            </div>
+
+            {/* Puppy 3 */}
+            <div className="group bg-white rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300">
+              <div className="relative h-80 overflow-hidden">
+                <ImageWithFallback
+                  src="/p3.jpg"
+                  alt="Boerboel Puppy"
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                  fallbackSrc="p3.jpg"
+                />
+              </div>
+              <div className="p-6 text-center">
+                <h3 className="text-2xl font-bold mb-2">Upcoming Litters</h3>
+                <p className="text-gray-500 text-sm mb-4">
+                  Reserve your spot for our upcoming litters. Get priority selection.
+                </p>
+                <Link 
+                  href="/reserve"
+                  className="inline-block bg-gradient-to-r from-yellow-500 to-yellow-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-yellow-600 hover:to-yellow-700 transition transform hover:scale-105"
+                >
+                  Reserve Now →
+                </Link>
+              </div>
+            </div>
+          </div>
+
+          <div className="text-center mt-12">
+            <Link 
+              href="/puppies" 
+              className="inline-block bg-blue text-white px-8 py-3 rounded-lg font-semibold hover:bg-gray-800 transition transform hover:scale-105"
+            >
+              View All Available Puppies →
+            </Link>
+          </div>
+        </div>
+      </section>
+
       {/* Instagram Feed Section */}
       <section id="instagram-feed" className="bg-gray-50 py-20">
         <div className="max-w-7xl mx-auto px-6">
@@ -142,7 +238,7 @@ export default function Page() {
 
       <WhyChooseUs />
 
-      {/* Our Dogs Section - Fixed with ImageWithFallback */}
+      {/* Our Dogs Section */}
       <section className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-12">
@@ -161,7 +257,7 @@ export default function Page() {
                   src="/female.png" 
                   alt="Our Female Boerboels" 
                   className="w-full h-64 object-cover group-hover:scale-105 transition-transform duration-500"
-                  fallbackSrc="https://via.placeholder.com/600x400?text=Female+Boerboel"
+                  fallbackSrc="https://images.unsplash.com/photo-1568572933382-74d440642117?w=600&h=400&fit=crop"
                 />
               </div>
               <div className="p-6">
@@ -188,7 +284,7 @@ export default function Page() {
                   src="/stud.png" 
                   alt="Our Stud Boerboels" 
                   className="w-full h-64 object-cover group-hover:scale-105 transition-transform duration-500"
-                  fallbackSrc="https://via.placeholder.com/600x400?text=Stud+Boerboel"
+                  fallbackSrc="https://images.unsplash.com/photo-1568572933382-74d440642117?w=600&h=400&fit=crop"
                 />
               </div>
               <div className="p-6">
@@ -215,7 +311,7 @@ export default function Page() {
                   src="/puppy.png" 
                   alt="Our Boerboel Puppies" 
                   className="w-full h-64 object-cover group-hover:scale-105 transition-transform duration-500"
-                  fallbackSrc="https://via.placeholder.com/600x400?text=Boerboel+Puppies"
+                  fallbackSrc="https://images.unsplash.com/photo-1568572933382-74d440642117?w=600&h=400&fit=crop"
                 />
               </div>
               <div className="p-6">

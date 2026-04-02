@@ -9,6 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@emailjs/browser": "^4.4.1",
+    "@emailjs/nodejs": "^5.0.2",
     "@supabase/supabase-js": "^2.98.0",
     "browser-image-compression": "^2.0.2",
     "next": "16.1.6",

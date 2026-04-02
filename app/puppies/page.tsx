@@ -24,6 +24,16 @@ interface Puppy {
 
 const WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "2347019996837";
 
+// Sanitize function for any user-generated content
+const sanitizeText = (text: string): string => {
+  if (!text) return '';
+  return text
+    .trim()
+    .replace(/[<>]/g, '')
+    .replace(/[&]/g, 'and')
+    .slice(0, 255);
+};
+
 export default function PuppiesPage() {
   const router = useRouter();
   const [puppies, setPuppies] = useState<Puppy[]>([]);
@@ -38,27 +48,41 @@ export default function PuppiesPage() {
   const fetchAvailablePuppies = async () => {
     setLoading(true);
     
-    const { data, error } = await supabase
-      .from('dogs')
-      .select('*')
-      .eq('type', 'puppy')
-      .eq('status', 'available')
-      .order('created_at', { ascending: false });
-    
-    if (error) {
+    try {
+      const { data, error } = await supabase
+        .from('dogs')
+        .select('*')
+        .eq('type', 'puppy')
+        .eq('status', 'available')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      
+      // Sanitize all text fields from the database
+      const puppiesData = (data as Puppy[]) || [];
+      const sanitizedPuppies = puppiesData.map(puppy => ({
+        ...puppy,
+        name: sanitizeText(puppy.name),
+        color: puppy.color ? sanitizeText(puppy.color) : undefined,
+        gender: puppy.gender ? sanitizeText(puppy.gender) : undefined,
+        age: puppy.age ? sanitizeText(puppy.age) : undefined,
+        description: puppy.description ? sanitizeText(puppy.description) : undefined,
+        parents: puppy.parents ? sanitizeText(puppy.parents) : undefined,
+      }));
+      
+      setPuppies(sanitizedPuppies);
+      
+      // Initialize active image index for each puppy
+      const initialIndexes: { [key: number]: number } = {};
+      sanitizedPuppies.forEach(puppy => {
+        initialIndexes[puppy.id] = 0;
+      });
+      setActiveImageIndex(initialIndexes);
+    } catch (error) {
       console.error('Error fetching puppies:', error);
+    } finally {
+      setLoading(false);
     }
-    
-    const puppiesData = (data as Puppy[]) || [];
-    setPuppies(puppiesData);
-    
-    // Initialize active image index for each puppy
-    const initialIndexes: { [key: number]: number } = {};
-    puppiesData.forEach(puppy => {
-      initialIndexes[puppy.id] = 0;
-    });
-    setActiveImageIndex(initialIndexes);
-    setLoading(false);
   };
 
   const handlePrevImage = (puppyId: number, imagesLength: number, e: React.MouseEvent) => {
@@ -95,8 +119,16 @@ export default function PuppiesPage() {
     }));
   };
 
-  const handleReserve = (puppyId: number) => {
-    router.push(`/puppies/reserve/${puppyId}`);
+  const handleReserve = (puppy: Puppy) => {
+    // Sanitize data before storing in localStorage
+    const sanitizedName = sanitizeText(puppy.name);
+    const sanitizedPrice = puppy.price?.toString() || '0';
+    
+    localStorage.setItem('selectedPuppy', sanitizedName);
+    localStorage.setItem('selectedPuppyId', puppy.id.toString());
+    localStorage.setItem('selectedPuppyPrice', sanitizedPrice);
+    
+    router.push(`/reserve?puppy=${encodeURIComponent(sanitizedName)}&puppyId=${puppy.id}`);
   };
 
   if (loading) {
@@ -121,16 +153,19 @@ export default function PuppiesPage() {
     <div className="min-h-screen bg-gray-50 py-12">
       <div className="max-w-7xl mx-auto px-4">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl md:text-5xl font-bold mb-2">Available Puppies</h1>
+        <div className="mb-8 text-center md:text-left">
+          <h1 className="text-4xl md:text-5xl font-bold mb-2 bg-gradient-to-r from-yellow-600 to-yellow-400 bg-clip-text text-transparent">
+            Available Puppies
+          </h1>
           <p className="text-gray-600 text-lg">
-            {puppies.length} {puppies.length === 1 ? 'puppy' : 'puppies'} currently available
+            {puppies.length} {puppies.length === 1 ? 'puppy' : 'puppies'} currently available for reservation
           </p>
         </div>
 
         {/* Puppies Grid */}
         {puppies.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-lg">
+          <div className="text-center py-12 bg-white rounded-lg shadow-sm">
+            <div className="text-6xl mb-4">🐕</div>
             <p className="text-gray-500 text-lg">No puppies available at the moment.</p>
             <p className="text-gray-400 mt-2">Check back soon or contact us for upcoming litters.</p>
             <a
@@ -139,7 +174,7 @@ export default function PuppiesPage() {
               rel="noopener noreferrer"
               className="inline-block mt-6 bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition"
             >
-              Contact Us on WhatsApp
+              📱 Contact Us on WhatsApp
             </a>
           </div>
         ) : (
@@ -151,15 +186,15 @@ export default function PuppiesPage() {
               const imageFailed = currentImage ? failedImages[`${puppy.id}-${currentImage}`] : false;
 
               return (
-                <div key={puppy.id} className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-2xl transition group">
+                <div key={puppy.id} className="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 group transform hover:-translate-y-1">
                   {/* Image Gallery Section */}
-                  <div className="relative h-64 bg-gray-100">
+                  <div className="relative h-64 bg-gradient-to-br from-yellow-50 to-amber-50">
                     {/* Main Image with Zoom on Hover */}
                     <div className="relative w-full h-full overflow-hidden">
                       {puppy.images && puppy.images.length > 0 && !imageFailed ? (
                         <Image
                           src={puppy.images[currentIndex]}
-                          alt={puppy.name}
+                          alt={sanitizeText(puppy.name)}
                           fill
                           className="object-cover transition-transform duration-700 group-hover:scale-110"
                           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
@@ -171,26 +206,27 @@ export default function PuppiesPage() {
                           }}
                         />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center text-6xl bg-yellow-50">
+                        <div className="w-full h-full flex items-center justify-center text-6xl">
                           🐕
                         </div>
                       )}
                     </div>
 
                     {/* Price Badge */}
-                    <div className="absolute top-4 left-4 bg-black/70 text-white px-3 py-1 rounded-full text-sm font-semibold z-10">
+                    <div className="absolute top-4 left-4 bg-gradient-to-r from-yellow-600 to-yellow-500 text-white px-3 py-1.5 rounded-full text-sm font-bold shadow-lg z-10">
                       ₦{puppy.price?.toLocaleString() || 'Contact'}
                     </div>
 
                     {/* Status Badge */}
-                    <span className="absolute top-4 right-4 bg-green-500 text-white px-3 py-1 rounded-full text-sm font-semibold z-10">
+                    <span className="absolute top-4 right-4 bg-green-500 text-white px-3 py-1.5 rounded-full text-sm font-semibold shadow-lg z-10 flex items-center gap-1">
+                      <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
                       Available
                     </span>
 
                     {/* Image Counter */}
                     {hasMultipleImages && !imageFailed && (
-                      <div className="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded z-10">
-                        {currentIndex + 1} / {puppy.images?.length}
+                      <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-full z-10">
+                        📷 {currentIndex + 1} / {puppy.images?.length}
                       </div>
                     )}
 
@@ -199,14 +235,14 @@ export default function PuppiesPage() {
                       <>
                         <button
                           onClick={(e) => handlePrevImage(puppy.id, puppy.images!.length, e)}
-                          className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition z-20"
+                          className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white w-8 h-8 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 z-20"
                           aria-label="Previous image"
                         >
                           ←
                         </button>
                         <button
                           onClick={(e) => handleNextImage(puppy.id, puppy.images!.length, e)}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition z-20"
+                          className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white w-8 h-8 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 z-20"
                           aria-label="Next image"
                         >
                           →
@@ -223,8 +259,8 @@ export default function PuppiesPage() {
                             onClick={(e) => handleThumbnailClick(puppy.id, idx, e)}
                             className={`w-2 h-2 rounded-full transition-all ${
                               idx === currentIndex 
-                                ? 'bg-white scale-125' 
-                                : 'bg-white/50 hover:bg-white/80'
+                                ? 'bg-yellow-400 w-3' 
+                                : 'bg-white/60 hover:bg-white/80'
                             }`}
                             aria-label={`Go to image ${idx + 1}`}
                           />
@@ -234,30 +270,30 @@ export default function PuppiesPage() {
                   </div>
 
                   {/* Content */}
-                  <div className="p-6">
-                    <div className="flex justify-between items-start mb-3">
-                      <h2 className="text-2xl font-bold">{puppy.name || 'Puppy'}</h2>
+                  <div className="p-5">
+                    <div className="flex justify-between items-start mb-2">
+                      <h2 className="text-xl font-bold text-gray-800">{puppy.name || 'Puppy'}</h2>
                       {puppy.color && (
-                        <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded">
-                          {puppy.color}
+                        <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-1 rounded-full">
+                          🎨 {puppy.color}
                         </span>
                       )}
                     </div>
                     
-                    <div className="flex flex-wrap gap-3 text-sm text-gray-600 mb-4">
+                    <div className="flex flex-wrap gap-3 text-sm text-gray-500 mb-3">
                       {puppy.age && (
-                        <span className="flex items-center gap-1">
-                          <span>🎂</span> {puppy.age}
+                        <span className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full">
+                          🎂 {puppy.age}
                         </span>
                       )}
                       {puppy.gender && (
-                        <span className="flex items-center gap-1">
-                          <span>⚥</span> {puppy.gender}
+                        <span className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full">
+                          {puppy.gender === 'Male' ? '♂️ Male' : '♀️ Female'}
                         </span>
                       )}
                       {puppy.parents && (
-                        <span className="flex items-center gap-1">
-                          <span>👪</span> {puppy.parents}
+                        <span className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full text-xs">
+                          👪 {puppy.parents}
                         </span>
                       )}
                     </div>
@@ -268,20 +304,29 @@ export default function PuppiesPage() {
                       </p>
                     )}
 
-                    {/* Action Buttons */}
-                    <div className="flex gap-2 mt-4">
+                    {/* Action Buttons - Enhanced Reserve Button */}
+                    <div className="flex gap-3 mt-4">
                       <button
-                        onClick={() => handleReserve(puppy.id)}
-                        className="flex-1 bg-black text-white py-3 rounded-lg hover:bg-gray-800 transition font-medium"
+                        onClick={() => handleReserve(puppy)}
+                        className="flex-1 bg-gradient-to-r from-yellow-500 to-yellow-600 text-white py-3 rounded-xl font-bold hover:from-yellow-600 hover:to-yellow-700 transition-all duration-300 transform hover:scale-[1.02] shadow-md hover:shadow-lg flex items-center justify-center gap-2"
                       >
+                        <span className="text-lg">🐕</span>
                         Reserve with ₦100,000
+                        <span className="text-sm">→</span>
                       </button>
                       <Link
                         href={`/puppies/${puppy.id}`}
-                        className="flex-1 text-center border border-black text-black py-3 rounded-lg hover:bg-black hover:text-white transition font-medium"
+                        className="px-4 py-3 rounded-xl border-2 border-gray-300 text-gray-700 font-medium hover:border-yellow-500 hover:text-yellow-600 transition-all duration-300 flex items-center justify-center gap-1"
                       >
-                        View Details
+                        Details
                       </Link>
+                    </div>
+                    
+                    {/* Deposit Info */}
+                    <div className="mt-3 text-center">
+                      <p className="text-xs text-gray-400">
+                        🔒 ₦100,000 deposit secures this puppy
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -291,18 +336,31 @@ export default function PuppiesPage() {
         )}
 
         {/* Info Banner */}
-        <div className="mt-12 bg-blue-50 border border-blue-200 rounded-xl p-6">
-          <h3 className="font-bold text-lg mb-2">💰 Reservation Policy</h3>
-          <p className="text-gray-600 mb-4">
-            A deposit of ₦100,000 secures your puppy. The remaining balance is due at pickup/delivery.
-            All puppies come with:
-          </p>
-          <ul className="list-disc list-inside text-gray-600 space-y-1">
-            <li>First round of vaccinations</li>
-            <li>Deworming treatment</li>
-            <li>Health certificate</li>
-            <li>Pedigree papers</li>
-          </ul>
+        <div className="mt-12 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-6">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+            <div>
+              <h3 className="font-bold text-lg mb-2 flex items-center gap-2">
+                <span className="text-2xl">🐕</span> Reservation Policy
+              </h3>
+              <p className="text-gray-600">
+                A deposit of ₦100,000 secures your puppy. The remaining balance is due at pickup/delivery.
+              </p>
+              <ul className="list-disc list-inside text-gray-600 mt-2 space-y-1">
+                <li>First round of vaccinations</li>
+                <li>Deworming treatment</li>
+                <li>Health certificate</li>
+                <li>Pedigree papers</li>
+              </ul>
+            </div>
+            <a
+              href={`https://wa.me/${WHATSAPP_NUMBER}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition flex items-center gap-2 whitespace-nowrap"
+            >
+              <span>💬</span> Questions? Chat with us
+            </a>
+          </div>
         </div>
       </div>
     </div>
