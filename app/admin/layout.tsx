@@ -138,7 +138,7 @@ export default function AdminLayout({
         </div>
       </header>
 
-      {/* Navigation – updated order, Reports removed */}
+      {/* Navigation – Updated with Reservations tab */}
       <nav className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex space-x-6 overflow-x-auto py-2">
@@ -161,6 +161,16 @@ export default function AdminLayout({
               }`}
             >
               🐕 Dogs
+            </Link>
+            <Link 
+              href="/admin/reservations" 
+              className={`text-sm font-medium whitespace-nowrap ${
+                pathname.includes('/admin/reservations') 
+                  ? 'text-blue-600 border-b-2 border-blue-600' 
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              📋 Reservations
             </Link>
             <Link 
               href="/admin/products" 
@@ -200,7 +210,7 @@ export default function AdminLayout({
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              📋 Debtors
+              💰 Debtors
             </Link>
             <Link 
               href="/admin/expenses" 

@@ -1,3 +1,4 @@
+// app/admin/reservations/page.tsx
 "use client";
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -28,6 +29,11 @@ interface Reservation {
   };
 }
 
+// EmailJS configuration
+const EMAILJS_SERVICE_ID = process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID!;
+const EMAILJS_TEMPLATE_ID = process.env.NEXT_PUBLIC_EMAILJS_PAYMENT_TEMPLATE_ID!;
+const EMAILJS_PUBLIC_KEY = process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY!;
+
 export default function AdminReservationsPage() {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,6 +50,7 @@ export default function AdminReservationsPage() {
     customer_phone: '',
     customer_email: '',
     deposit_amount: 0,
+    total_price: 0,
     notes: ''
   });
 
@@ -79,7 +86,35 @@ export default function AdminReservationsPage() {
     setLoading(false);
   };
 
-  // Edit Reservation
+  // Send payment confirmation email
+  const sendPaymentConfirmationEmail = async (reservation: Reservation) => {
+    const templateParams = {
+      to_email: reservation.customer_email,
+      customer_name: reservation.customer_name,
+      dog_name: reservation.dog_name,
+      reference: reservation.reference,
+      total_paid: reservation.total_price.toLocaleString(),
+      year: new Date().getFullYear()
+    };
+
+    try {
+      const emailjs = (await import('@emailjs/browser')).default;
+      
+      await emailjs.send(
+        EMAILJS_SERVICE_ID,
+        EMAILJS_TEMPLATE_ID,
+        templateParams,
+        EMAILJS_PUBLIC_KEY
+      );
+      
+      console.log('Payment confirmation email sent to:', reservation.customer_email);
+      return true;
+    } catch (error) {
+      console.error('Error sending payment confirmation email:', error);
+      return false;
+    }
+  };
+
   const openEditModal = (reservation: Reservation) => {
     setSelectedReservation(reservation);
     setEditForm({
@@ -87,6 +122,7 @@ export default function AdminReservationsPage() {
       customer_phone: reservation.customer_phone,
       customer_email: reservation.customer_email || '',
       deposit_amount: reservation.deposit_amount,
+      total_price: reservation.total_price,
       notes: reservation.notes || ''
     });
     setShowEditModal(true);
@@ -98,9 +134,9 @@ export default function AdminReservationsPage() {
 
     try {
       const newDepositAmount = editForm.deposit_amount;
-      const newRemainingBalance = selectedReservation.total_price - newDepositAmount;
+      const newTotalPrice = editForm.total_price;
+      const newRemainingBalance = newTotalPrice - newDepositAmount;
 
-      // 1. Update reservation
       const { error: updateError } = await supabase
         .from('reservations')
         .update({
@@ -108,6 +144,7 @@ export default function AdminReservationsPage() {
           customer_phone: editForm.customer_phone,
           customer_email: editForm.customer_email || null,
           deposit_amount: newDepositAmount,
+          total_price: newTotalPrice,
           remaining_balance: newRemainingBalance,
           notes: editForm.notes || null
         })
@@ -115,14 +152,13 @@ export default function AdminReservationsPage() {
 
       if (updateError) throw updateError;
 
-      // 2. Update the corresponding sales record for deposit
       const { error: saleError } = await supabase
         .from('sales')
         .update({
           price: newDepositAmount,
           customer_name: editForm.customer_name,
           customer_phone: editForm.customer_phone,
-          notes: `EDITED: ${selectedReservation.reference} - Deposit updated from ₦${selectedReservation.deposit_amount.toLocaleString()} to ₦${newDepositAmount.toLocaleString()}`
+          notes: `EDITED: ${selectedReservation.reference} - Deposit updated`
         })
         .eq('source', 'dog_reserve')
         .eq('item_id', selectedReservation.dog_id)
@@ -143,43 +179,46 @@ export default function AdminReservationsPage() {
     }
   };
 
-  // Delete Reservation (only if pending)
   const deleteReservation = async () => {
     if (!selectedReservation) return;
-    if (selectedReservation.status !== 'pending') {
-      alert('Only pending reservations can be deleted. For completed/cancelled, use cancellation instead.');
-      return;
+    
+    let warningMessage = `⚠️ Are you sure you want to delete reservation ${selectedReservation.reference}?\n\n`;
+    if (selectedReservation.status === 'completed') {
+      warningMessage += `WARNING: This reservation is COMPLETED. Deleting it will also remove the final payment.\n\n`;
     }
+    warningMessage += `This action cannot be undone!`;
+    
+    if (!confirm(warningMessage)) return;
     
     setSubmitting(true);
 
     try {
-      // 1. Delete the corresponding sales record for deposit
-      const { error: saleError } = await supabase
+      await supabase
         .from('sales')
         .delete()
         .eq('source', 'dog_reserve')
         .eq('item_id', selectedReservation.dog_id)
-        .eq('payment_status', 'partial')
-        .eq('item_name', selectedReservation.dog_name);
+        .eq('payment_status', 'partial');
 
-      if (saleError) console.error('Error deleting sales record:', saleError);
+      if (selectedReservation.status === 'completed') {
+        await supabase
+          .from('sales')
+          .delete()
+          .eq('source', 'dog_sold')
+          .eq('item_id', selectedReservation.dog_id);
+      }
 
-      // 2. Delete the reservation
-      const { error: deleteError } = await supabase
+      await supabase
         .from('reservations')
         .delete()
         .eq('id', selectedReservation.id);
 
-      if (deleteError) throw deleteError;
-
-      // 3. Reset dog status back to available
       await supabase
         .from('dogs')
         .update({ status: 'available' })
         .eq('id', selectedReservation.dog_id);
 
-      alert(`✅ Reservation ${selectedReservation.reference} deleted successfully! Dog is now available.`);
+      alert(`✅ Reservation ${selectedReservation.reference} deleted successfully!`);
       fetchReservations();
       setShowDeleteModal(false);
       setSelectedReservation(null);
@@ -197,8 +236,7 @@ export default function AdminReservationsPage() {
     const today = new Date().toISOString().split('T')[0];
 
     try {
-      // 1. Update reservation status
-      const { error: updateError } = await supabase
+      await supabase
         .from('reservations')
         .update({ 
           status: 'completed',
@@ -206,19 +244,13 @@ export default function AdminReservationsPage() {
         })
         .eq('id', reservation.id);
 
-      if (updateError) throw updateError;
-
-      // 2. Update dog status to 'sold'
-      const { error: dogError } = await supabase
+      await supabase
         .from('dogs')
         .update({ status: 'sold' })
         .eq('id', reservation.dog_id);
 
-      if (dogError) throw dogError;
-
-      // 3. Insert final payment into sales table
       if (reservation.remaining_balance > 0) {
-        const { error: saleError } = await supabase
+        await supabase
           .from('sales')
           .insert([{
             source: 'dog_sold',
@@ -231,13 +263,15 @@ export default function AdminReservationsPage() {
             payment_status: 'paid',
             payment_method: reservation.payment_method,
             sale_date: today,
-            notes: `Reservation ${reservation.reference} - Final payment for ${reservation.dog_name}`
+            notes: `Reservation ${reservation.reference} - Final payment`
           }]);
-
-        if (saleError) throw saleError;
       }
 
-      alert(`✅ Reservation ${reservation.reference} completed! Final payment recorded.`);
+      if (reservation.customer_email) {
+        await sendPaymentConfirmationEmail(reservation);
+      }
+
+      alert(`✅ Reservation ${reservation.reference} completed! Email sent.`);
       fetchReservations();
       setShowConfirmModal(false);
       setSelectedReservation(null);
@@ -254,35 +288,26 @@ export default function AdminReservationsPage() {
     setSubmitting(true);
 
     try {
-      // 1. Update reservation status
-      const { error: updateError } = await supabase
+      await supabase
         .from('reservations')
         .update({ status: 'cancelled' })
         .eq('id', reservation.id);
 
-      if (updateError) throw updateError;
-
-      // 2. Update dog status back to 'available'
-      const { error: dogError } = await supabase
+      await supabase
         .from('dogs')
         .update({ status: 'available' })
         .eq('id', reservation.dog_id);
 
-      if (dogError) throw dogError;
-
-      // 3. Mark the deposit as cancelled in sales
-      const { error: updateSaleError } = await supabase
+      await supabase
         .from('sales')
         .update({ 
-          notes: `CANCELLED - ${reservation.reference} - ${reservation.customer_name} cancelled reservation` 
+          notes: `CANCELLED - ${reservation.reference}` 
         })
         .eq('source', 'dog_reserve')
         .eq('item_id', reservation.dog_id)
         .eq('payment_status', 'partial');
 
-      if (updateSaleError) console.error('Error updating sale note:', updateSaleError);
-
-      alert(`✅ Reservation ${reservation.reference} cancelled. Dog is now available again.`);
+      alert(`✅ Reservation ${reservation.reference} cancelled.`);
       fetchReservations();
       setShowCancelModal(false);
       setSelectedReservation(null);
@@ -476,49 +501,45 @@ export default function AdminReservationsPage() {
                       {new Date(res.reservation_date).toLocaleDateString()}
                     </td>
                     <td className="p-4">
-                      {res.status === 'pending' && (
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            onClick={() => openEditModal(res)}
-                            className="bg-blue-600 text-white px-3 py-1 rounded-lg text-xs font-medium hover:bg-blue-700 transition"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => {
-                              setSelectedReservation(res);
-                              setShowConfirmModal(true);
-                            }}
-                            className="bg-green-600 text-white px-3 py-1 rounded-lg text-xs font-medium hover:bg-green-700 transition"
-                          >
-                            Complete
-                          </button>
-                          <button
-                            onClick={() => {
-                              setSelectedReservation(res);
-                              setShowCancelModal(true);
-                            }}
-                            className="bg-yellow-600 text-white px-3 py-1 rounded-lg text-xs font-medium hover:bg-yellow-700 transition"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            onClick={() => {
-                              setSelectedReservation(res);
-                              setShowDeleteModal(true);
-                            }}
-                            className="bg-red-600 text-white px-3 py-1 rounded-lg text-xs font-medium hover:bg-red-700 transition"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      )}
-                      {res.status === 'completed' && (
-                        <span className="text-xs text-gray-400">Completed</span>
-                      )}
-                      {res.status === 'cancelled' && (
-                        <span className="text-xs text-gray-400">Cancelled</span>
-                      )}
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          onClick={() => openEditModal(res)}
+                          className="bg-blue-600 text-white px-3 py-1 rounded-lg text-xs font-medium hover:bg-blue-700 transition"
+                        >
+                          Edit
+                        </button>
+                        {res.status === 'pending' && (
+                          <>
+                            <button
+                              onClick={() => {
+                                setSelectedReservation(res);
+                                setShowConfirmModal(true);
+                              }}
+                              className="bg-green-600 text-white px-3 py-1 rounded-lg text-xs font-medium hover:bg-green-700 transition"
+                            >
+                              Complete
+                            </button>
+                            <button
+                              onClick={() => {
+                                setSelectedReservation(res);
+                                setShowCancelModal(true);
+                              }}
+                              className="bg-yellow-600 text-white px-3 py-1 rounded-lg text-xs font-medium hover:bg-yellow-700 transition"
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        )}
+                        <button
+                          onClick={() => {
+                            setSelectedReservation(res);
+                            setShowDeleteModal(true);
+                          }}
+                          className="bg-red-600 text-white px-3 py-1 rounded-lg text-xs font-medium hover:bg-red-700 transition"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -537,54 +558,28 @@ export default function AdminReservationsPage() {
       {/* Edit Reservation Modal */}
       {showEditModal && selectedReservation && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-lg w-full">
             <div className="p-6">
               <h2 className="text-2xl font-bold mb-2">Edit Reservation</h2>
-              <p className="text-gray-600 mb-4">Update reservation details</p>
-              
               <div className="space-y-4">
-                <div>
-                  <label className="block font-medium mb-1">Reference</label>
-                  <input
-                    type="text"
-                    value={selectedReservation.reference}
-                    disabled
-                    className="w-full p-2 border rounded bg-gray-50 font-mono text-sm"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block font-medium mb-1">Dog</label>
-                  <input
-                    type="text"
-                    value={selectedReservation.dog_name}
-                    disabled
-                    className="w-full p-2 border rounded bg-gray-50"
-                  />
-                </div>
-                
                 <div>
                   <label className="block font-medium mb-1">Customer Name *</label>
                   <input
                     type="text"
-                    required
                     value={editForm.customer_name}
                     onChange={(e) => setEditForm({...editForm, customer_name: e.target.value})}
                     className="w-full p-2 border rounded"
                   />
                 </div>
-                
                 <div>
-                  <label className="block font-medium mb-1">Phone Number *</label>
+                  <label className="block font-medium mb-1">Phone Number</label>
                   <input
                     type="tel"
-                    required
                     value={editForm.customer_phone}
                     onChange={(e) => setEditForm({...editForm, customer_phone: e.target.value})}
                     className="w-full p-2 border rounded"
                   />
                 </div>
-                
                 <div>
                   <label className="block font-medium mb-1">Email</label>
                   <input
@@ -594,7 +589,15 @@ export default function AdminReservationsPage() {
                     className="w-full p-2 border rounded"
                   />
                 </div>
-                
+                <div>
+                  <label className="block font-medium mb-1">Total Price (₦)</label>
+                  <input
+                    type="number"
+                    value={editForm.total_price}
+                    onChange={(e) => setEditForm({...editForm, total_price: Number(e.target.value)})}
+                    className="w-full p-2 border rounded"
+                  />
+                </div>
                 <div>
                   <label className="block font-medium mb-1">Deposit Amount (₦)</label>
                   <input
@@ -603,12 +606,7 @@ export default function AdminReservationsPage() {
                     onChange={(e) => setEditForm({...editForm, deposit_amount: Number(e.target.value)})}
                     className="w-full p-2 border rounded"
                   />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Total Price: ₦{selectedReservation.total_price.toLocaleString()} | 
-                    New Balance: ₦{(selectedReservation.total_price - editForm.deposit_amount).toLocaleString()}
-                  </p>
                 </div>
-                
                 <div>
                   <label className="block font-medium mb-1">Notes</label>
                   <textarea
@@ -619,18 +617,17 @@ export default function AdminReservationsPage() {
                   />
                 </div>
               </div>
-              
               <div className="flex gap-3 mt-6">
                 <button
                   onClick={updateReservation}
                   disabled={submitting}
-                  className="flex-1 bg-blue-600 text-white py-2 rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50"
+                  className="flex-1 bg-blue-600 text-white py-2 rounded-lg font-bold hover:bg-blue-700"
                 >
                   {submitting ? 'Saving...' : 'Save Changes'}
                 </button>
                 <button
                   onClick={() => setShowEditModal(false)}
-                  className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+                  className="px-4 py-2 border rounded-lg"
                 >
                   Cancel
                 </button>
@@ -646,30 +643,22 @@ export default function AdminReservationsPage() {
           <div className="bg-white rounded-2xl max-w-lg w-full">
             <div className="p-6">
               <h2 className="text-2xl font-bold mb-2">Complete Reservation</h2>
-              <p className="text-gray-600 mb-4">Record final payment and complete the sale</p>
-              
-              <div className="bg-gray-50 p-4 rounded-lg mb-4 space-y-2">
-                <p><strong>Reference:</strong> <code>{selectedReservation.reference}</code></p>
+              <div className="bg-gray-50 p-4 rounded-lg mb-4">
                 <p><strong>Dog:</strong> {selectedReservation.dog_name}</p>
                 <p><strong>Customer:</strong> {selectedReservation.customer_name}</p>
-                <p><strong>Phone:</strong> {selectedReservation.customer_phone}</p>
-                <p><strong>Deposit Paid:</strong> ₦{selectedReservation.deposit_amount.toLocaleString()}</p>
-                <p className="text-lg font-bold text-green-600">
-                  Remaining Balance: ₦{selectedReservation.remaining_balance.toLocaleString()}
-                </p>
+                <p><strong>Remaining Balance:</strong> ₦{selectedReservation.remaining_balance.toLocaleString()}</p>
               </div>
-              
               <div className="flex gap-3">
                 <button
                   onClick={() => completeReservation(selectedReservation)}
                   disabled={submitting}
-                  className="flex-1 bg-green-600 text-white py-2 rounded-lg font-bold hover:bg-green-700 disabled:opacity-50"
+                  className="flex-1 bg-green-600 text-white py-2 rounded-lg font-bold hover:bg-green-700"
                 >
-                  {submitting ? 'Processing...' : 'Complete & Record Payment'}
+                  {submitting ? 'Processing...' : 'Complete & Send Email'}
                 </button>
                 <button
                   onClick={() => setShowConfirmModal(false)}
-                  className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+                  className="px-4 py-2 border rounded-lg"
                 >
                   Cancel
                 </button>
@@ -685,35 +674,23 @@ export default function AdminReservationsPage() {
           <div className="bg-white rounded-2xl max-w-lg w-full">
             <div className="p-6">
               <h2 className="text-2xl font-bold mb-2 text-red-600">Cancel Reservation</h2>
-              <p className="text-gray-600 mb-4">This will cancel the reservation and make the dog available again.</p>
-              
-              <div className="bg-gray-50 p-4 rounded-lg mb-4 space-y-2">
-                <p><strong>Reference:</strong> <code>{selectedReservation.reference}</code></p>
+              <div className="bg-gray-50 p-4 rounded-lg mb-4">
                 <p><strong>Dog:</strong> {selectedReservation.dog_name}</p>
                 <p><strong>Customer:</strong> {selectedReservation.customer_name}</p>
-                <p><strong>Deposit Paid:</strong> ₦{selectedReservation.deposit_amount.toLocaleString()}</p>
               </div>
-              
-              <div className="bg-yellow-50 p-3 rounded-lg mb-4">
-                <p className="text-sm text-yellow-800">
-                  ⚠️ Note: The deposit will remain in the sales record but marked as cancelled.
-                  The dog will be set back to "Available" status.
-                </p>
-              </div>
-              
               <div className="flex gap-3">
                 <button
                   onClick={() => cancelReservation(selectedReservation)}
                   disabled={submitting}
-                  className="flex-1 bg-red-600 text-white py-2 rounded-lg font-bold hover:bg-red-700 disabled:opacity-50"
+                  className="flex-1 bg-red-600 text-white py-2 rounded-lg font-bold hover:bg-red-700"
                 >
-                  {submitting ? 'Processing...' : 'Yes, Cancel Reservation'}
+                  {submitting ? 'Processing...' : 'Yes, Cancel'}
                 </button>
                 <button
                   onClick={() => setShowCancelModal(false)}
-                  className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+                  className="px-4 py-2 border rounded-lg"
                 >
-                  No, Go Back
+                  No
                 </button>
               </div>
             </div>
@@ -727,40 +704,25 @@ export default function AdminReservationsPage() {
           <div className="bg-white rounded-2xl max-w-lg w-full">
             <div className="p-6">
               <h2 className="text-2xl font-bold mb-2 text-red-600">Delete Reservation</h2>
-              <p className="text-gray-600 mb-4">
-                This will permanently delete this reservation and remove the deposit from sales records.
-                <strong className="block mt-2 text-red-600">This action cannot be undone!</strong>
-              </p>
-              
-              <div className="bg-gray-50 p-4 rounded-lg mb-4 space-y-2">
-                <p><strong>Reference:</strong> <code>{selectedReservation.reference}</code></p>
+              <p className="text-gray-600 mb-4">This action cannot be undone!</p>
+              <div className="bg-gray-50 p-4 rounded-lg mb-4">
+                <p><strong>Reference:</strong> {selectedReservation.reference}</p>
                 <p><strong>Dog:</strong> {selectedReservation.dog_name}</p>
                 <p><strong>Customer:</strong> {selectedReservation.customer_name}</p>
-                <p><strong>Deposit Paid:</strong> ₦{selectedReservation.deposit_amount.toLocaleString()}</p>
               </div>
-              
-              <div className="bg-red-50 p-3 rounded-lg mb-4">
-                <p className="text-sm text-red-800">
-                  ⚠️ Warning: This will:
-                  <br />- Delete the reservation record
-                  <br />- Remove the deposit from sales records
-                  <br />- Set the dog back to "Available" status
-                </p>
-              </div>
-              
               <div className="flex gap-3">
                 <button
                   onClick={deleteReservation}
                   disabled={submitting}
-                  className="flex-1 bg-red-600 text-white py-2 rounded-lg font-bold hover:bg-red-700 disabled:opacity-50"
+                  className="flex-1 bg-red-600 text-white py-2 rounded-lg font-bold hover:bg-red-700"
                 >
-                  {submitting ? 'Processing...' : 'Yes, Permanently Delete'}
+                  {submitting ? 'Processing...' : 'Yes, Delete'}
                 </button>
                 <button
                   onClick={() => setShowDeleteModal(false)}
-                  className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+                  className="px-4 py-2 border rounded-lg"
                 >
-                  No, Keep It
+                  No
                 </button>
               </div>
             </div>
