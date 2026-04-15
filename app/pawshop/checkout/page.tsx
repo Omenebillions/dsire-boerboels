@@ -66,7 +66,6 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     loadCart();
-    // Generate unique order reference
     setOrderReference(`DS-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`);
   }, []);
 
@@ -81,8 +80,7 @@ export default function CheckoutPage() {
   };
 
   const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const shipping = formData.deliveryMethod === 'delivery' ? (subtotal > 50000 ? 0 : 2500) : 0;
-  const total = subtotal + shipping;
+  const total = subtotal;
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -113,7 +111,6 @@ export default function CheckoutPage() {
       notes: formData.notes
     };
 
-    // Save to Supabase
     const { error } = await supabase.from('orders').insert([orderData]);
 
     if (error) {
@@ -123,7 +120,6 @@ export default function CheckoutPage() {
       return false;
     }
 
-    // Update product stock
     for (const item of cart) {
       const { data: product } = await supabase
         .from('products')
@@ -153,17 +149,14 @@ export default function CheckoutPage() {
   };
 
   const handlePaymentProof = () => {
-    // Format items list nicely
     const itemsList = cart.map(item => 
       `• ${item.name} x${item.quantity} - ₦${(item.price * item.quantity).toLocaleString()}`
     ).join('%0A');
     
-    // Format delivery address
     const deliveryInfo = formData.deliveryMethod === 'delivery' 
       ? `${formData.address}, ${formData.city}, ${formData.state}`
-      : 'Pickup from Kennel (Lagos)';
+      : 'Pickup from Kennel (Abuja)';
     
-    // Create a beautifully formatted WhatsApp message with ALL details
     const message = `🔔 *NEW ORDER RECEIVED!* 🔔%0A%0A` +
       `━━━━━━━━━━━━━━━━━━━━━%0A` +
       `📋 *ORDER REFERENCE:*%0A${orderReference}%0A%0A` +
@@ -192,7 +185,6 @@ export default function CheckoutPage() {
     
     window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${message}`, '_blank');
     
-    // Clear cart after redirect
     localStorage.removeItem('cart');
     window.dispatchEvent(new Event('cartUpdated'));
   };
@@ -225,7 +217,6 @@ export default function CheckoutPage() {
             </div>
             
             <div className="p-6 space-y-6">
-              {/* Bank Details */}
               <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
                 <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
                   <span>🏦</span> Bank Transfer Details
@@ -253,7 +244,6 @@ export default function CheckoutPage() {
                 </p>
               </div>
 
-              {/* WhatsApp Proof Button */}
               <button
                 onClick={handlePaymentProof}
                 className="w-full bg-green-600 text-white py-4 rounded-xl font-bold hover:bg-green-700 transition flex items-center justify-center gap-2 text-lg"
@@ -265,7 +255,6 @@ export default function CheckoutPage() {
                 You'll be redirected to WhatsApp. Please attach your payment receipt/screenshot.
               </p>
 
-              {/* Order Summary */}
               <div className="border-t pt-4">
                 <h4 className="font-bold mb-2">Order Summary:</h4>
                 {cart.map((item, idx) => (
@@ -289,7 +278,6 @@ export default function CheckoutPage() {
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4">
-        {/* Breadcrumb */}
         <div className="mb-6">
           <Link href="/pawshop/cart" className="text-gray-600 hover:text-black transition">
             ← Back to Cart
@@ -300,9 +288,7 @@ export default function CheckoutPage() {
 
         <form onSubmit={handleSubmit}>
           <div className="grid lg:grid-cols-3 gap-8">
-            {/* Billing Form */}
             <div className="lg:col-span-2 space-y-6">
-              {/* Contact Information */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                 <h2 className="text-xl font-bold mb-4">Contact Information</h2>
                 <div className="grid md:grid-cols-2 gap-4">
@@ -362,7 +348,6 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
-              {/* Delivery Information */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                 <h2 className="text-xl font-bold mb-4">Delivery Information</h2>
                 
@@ -449,13 +434,12 @@ export default function CheckoutPage() {
                 {formData.deliveryMethod === 'pickup' && (
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                     <p className="text-sm text-blue-800">
-                      📍 Pickup Location: Dsire Boerboels Kennel, Lagos
+                      📍 Pickup Location: Dsire Boerboels Kennel, Abuja
                     </p>
                   </div>
                 )}
               </div>
 
-              {/* Payment Info */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                 <h2 className="text-xl font-bold mb-4">Payment Method</h2>
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -467,7 +451,6 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
-              {/* Additional Notes */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Order Notes (Optional)
@@ -488,12 +471,10 @@ export default function CheckoutPage() {
               <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 sticky top-24">
                 <h2 className="text-xl font-bold mb-4">Your Order</h2>
 
-                {/* Order Reference Preview */}
                 <div className="mb-4 p-2 bg-gray-50 rounded text-xs font-mono">
                   Ref: {orderReference}
                 </div>
 
-                {/* Order Items */}
                 <div className="space-y-3 mb-4 max-h-96 overflow-y-auto">
                   {cart.map((item) => (
                     <div key={item.id} className="flex gap-3">
@@ -523,21 +504,11 @@ export default function CheckoutPage() {
                   ))}
                 </div>
 
-                {/* Totals */}
                 <div className="space-y-2 pt-4 border-t">
                   <div className="flex justify-between text-gray-600">
                     <span>Subtotal</span>
                     <span className="font-medium">₦{subtotal.toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between text-gray-600">
-                    <span>Shipping</span>
-                    <span className="font-medium">{shipping === 0 ? 'FREE' : `₦${shipping.toLocaleString()}`}</span>
-                  </div>
-                  {shipping > 0 && (
-                    <p className="text-xs text-gray-500">
-                      Free shipping on orders over ₦50,000
-                    </p>
-                  )}
                   <div className="flex justify-between font-bold text-lg pt-2 border-t">
                     <span>Total</span>
                     <span className="text-green-600">₦{total.toLocaleString()}</span>
