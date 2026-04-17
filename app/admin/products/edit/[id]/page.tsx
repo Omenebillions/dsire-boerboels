@@ -24,6 +24,8 @@ export default function EditProductPage() {
   const [product, setProduct] = useState<any>(null);
   const [hasVariations, setHasVariations] = useState(false);
   const [variations, setVariations] = useState<Variation[]>([]);
+  const [totalStock, setTotalStock] = useState(0);
+  const [manualInStock, setManualInStock] = useState(false);
   
   // Image state
   const [newImageFiles, setNewImageFiles] = useState<File[]>([]);
@@ -32,6 +34,16 @@ export default function EditProductPage() {
   useEffect(() => {
     fetchProduct();
   }, []);
+
+  // Update total stock when variations change
+  useEffect(() => {
+    if (hasVariations && variations.length > 0) {
+      const total = variations.reduce((sum, v) => sum + (Number(v.stock) || 0), 0);
+      setTotalStock(total);
+      // Auto-set manualInStock based on total stock (if any stock exists, product can be in stock)
+      setManualInStock(total > 0);
+    }
+  }, [variations, hasVariations]);
 
   const fetchProduct = async () => {
     setLoading(true);
@@ -46,6 +58,11 @@ export default function EditProductPage() {
       if (data.variations && data.variations.length > 0) {
         setHasVariations(true);
         setVariations(data.variations);
+        const total = data.variations.reduce((sum: number, v: Variation) => sum + (Number(v.stock) || 0), 0);
+        setTotalStock(total);
+        setManualInStock(total > 0);
+      } else {
+        setManualInStock(data.in_stock);
       }
     }
     setLoading(false);
@@ -131,6 +148,11 @@ export default function EditProductPage() {
     setVariations(updated);
   };
 
+  // Check if variation has stock
+  const isVariationInStock = (stock: number): boolean => {
+    return stock > 0;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!product) return;
@@ -139,13 +161,11 @@ export default function EditProductPage() {
     try {
       let allImages = [...(product.images || [])];
       
-      // Upload new images
       if (newImageFiles.length > 0) {
         const uploadedUrls = await uploadImages(newImageFiles);
         allImages = [...uploadedUrls, ...allImages];
       }
 
-      // Process variations
       let variationsData = null;
       if (hasVariations) {
         const validVariations = variations.filter(v => v.price > 0 && v.size.trim());
@@ -155,12 +175,30 @@ export default function EditProductPage() {
           return;
         }
         variationsData = validVariations;
+        
+        // Calculate total stock from variations
+        const totalStockCalc = validVariations.reduce((sum, v) => sum + (Number(v.stock) || 0), 0);
+        // If manualInStock is true but totalStock is 0, show error
+        if (manualInStock && totalStockCalc === 0) {
+          alert("Cannot mark product as 'In Stock' because all variations have zero stock. Please add stock to at least one variation.");
+          setSaving(false);
+          return;
+        }
+        // If manualInStock is false but totalStock > 0, we can allow, but product will be out of stock
       }
 
-      // Calculate min price for "starting at" display
       const minPrice = hasVariations && variationsData 
         ? Math.min(...variationsData.map(v => v.price))
         : product.price;
+
+      // Determine final in_stock value
+      let finalInStock = product.in_stock;
+      if (hasVariations && variationsData) {
+        const totalStockCalc = variationsData.reduce((sum, v) => sum + (Number(v.stock) || 0), 0);
+        finalInStock = manualInStock && totalStockCalc > 0;
+      } else {
+        finalInStock = manualInStock;
+      }
 
       const updateData = {
         name: product.name,
@@ -170,7 +208,7 @@ export default function EditProductPage() {
         compare_price: product.compare_price || null,
         description: product.description || null,
         stock: hasVariations ? 0 : (product.stock || 0),
-        in_stock: hasVariations ? true : product.in_stock,
+        in_stock: finalInStock,
         featured: product.featured || false,
         weight: product.weight || null,
         brand: product.brand || null,
@@ -411,6 +449,24 @@ export default function EditProductPage() {
                   />
                 </div>
               </div>
+
+              {/* Manual In Stock Toggle for Simple Products */}
+              <div className="mt-4 p-4 bg-green-50 rounded-lg">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={manualInStock} 
+                    onChange={(e) => setManualInStock(e.target.checked)} 
+                    className="w-5 h-5"
+                  />
+                  <span className="font-medium">✅ Product is In Stock</span>
+                </label>
+                {!manualInStock && (product.stock || 0) > 0 && (
+                  <p className="text-xs text-yellow-600 mt-2">
+                    ⚠️ You have {product.stock} units in stock but product is marked out of stock. Check the box above to show as available.
+                  </p>
+                )}
+              </div>
             </div>
           )}
 
@@ -419,80 +475,99 @@ export default function EditProductPage() {
             <div className="space-y-4 border border-gray-200 rounded-lg p-4 bg-gray-50 transition-all duration-300">
               <div className="flex justify-between items-center">
                 <h3 className="font-bold text-lg">📏 Size Variations</h3>
-                <p className="text-xs text-green-600 font-medium">
-                  Starting from: ₦{minVariationPrice.toLocaleString()}
-                </p>
+                <div className="text-right">
+                  <p className="text-xs text-green-600 font-medium">
+                    Starting from: ₦{minVariationPrice.toLocaleString()}
+                  </p>
+                  <p className={`text-xs font-bold ${totalStock > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    Total Stock: {totalStock} units
+                  </p>
+                </div>
               </div>
               <p className="text-xs text-gray-500">Define pricing and stock for each size option</p>
               
-              {variations.map((variation, index) => (
-                <div key={index} className="border rounded-lg p-4 bg-white">
-                  <div className="flex justify-between items-center mb-3">
-                    <h4 className="font-medium">Variation {index + 1}</h4>
-                    <button
-                      type="button"
-                      onClick={() => removeVariation(index)}
-                      className="text-red-500 text-sm hover:text-red-700"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium mb-1">Size *</label>
-                      <select
-                        value={variation.size}
-                        onChange={(e) => updateVariation(index, 'size', e.target.value)}
-                        className="w-full p-2 border rounded text-sm"
+              {variations.map((variation, index) => {
+                const hasStock = variation.stock > 0;
+                return (
+                  <div key={index} className="border rounded-lg p-4 bg-white">
+                    <div className="flex justify-between items-center mb-3">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-medium">Variation {index + 1}</h4>
+                        {!hasStock && (
+                          <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
+                            Out of Stock
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeVariation(index)}
+                        className="text-red-500 text-sm hover:text-red-700"
                       >
-                        <option value="Small">Small</option>
-                        <option value="Medium">Medium</option>
-                        <option value="Large">Large</option>
-                        <option value="X-Large">X-Large</option>
-                      </select>
+                        Remove
+                      </button>
                     </div>
-                    <div>
-                      <label className="block text-xs font-medium mb-1">Price (₦) *</label>
-                      <input
-                        type="number"
-                        value={variation.price}
-                        onChange={(e) => updateVariation(index, 'price', Number(e.target.value))}
-                        className="w-full p-2 border rounded text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium mb-1">Stock *</label>
-                      <input
-                        type="number"
-                        value={variation.stock}
-                        onChange={(e) => updateVariation(index, 'stock', Number(e.target.value))}
-                        className="w-full p-2 border rounded text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium mb-1">SKU</label>
-                      <input
-                        type="text"
-                        value={variation.sku}
-                        onChange={(e) => updateVariation(index, 'sku', e.target.value)}
-                        className="w-full p-2 border rounded text-sm"
-                        placeholder="Optional"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium mb-1">Weight</label>
-                      <input
-                        type="text"
-                        value={variation.weight}
-                        onChange={(e) => updateVariation(index, 'weight', e.target.value)}
-                        className="w-full p-2 border rounded text-sm"
-                        placeholder="e.g. 2kg"
-                      />
+                    
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium mb-1">Size *</label>
+                        <select
+                          value={variation.size}
+                          onChange={(e) => updateVariation(index, 'size', e.target.value)}
+                          className="w-full p-2 border rounded text-sm"
+                        >
+                          <option value="Small">Small</option>
+                          <option value="Medium">Medium</option>
+                          <option value="Large">Large</option>
+                          <option value="X-Large">X-Large</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1">Price (₦) *</label>
+                        <input
+                          type="number"
+                          value={variation.price}
+                          onChange={(e) => updateVariation(index, 'price', Number(e.target.value))}
+                          className="w-full p-2 border rounded text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1">Stock *</label>
+                        <input
+                          type="number"
+                          value={variation.stock}
+                          onChange={(e) => updateVariation(index, 'stock', Number(e.target.value))}
+                          className={`w-full p-2 border rounded text-sm ${!hasStock && variation.stock === 0 ? 'border-red-300 bg-red-50' : ''}`}
+                          placeholder="Quantity available"
+                        />
+                        {variation.stock === 0 && (
+                          <p className="text-xs text-red-500 mt-1">⚠️ This size is out of stock</p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1">SKU</label>
+                        <input
+                          type="text"
+                          value={variation.sku}
+                          onChange={(e) => updateVariation(index, 'sku', e.target.value)}
+                          className="w-full p-2 border rounded text-sm"
+                          placeholder="Optional"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1">Weight</label>
+                        <input
+                          type="text"
+                          value={variation.weight}
+                          onChange={(e) => updateVariation(index, 'weight', e.target.value)}
+                          className="w-full p-2 border rounded text-sm"
+                          placeholder="e.g. 2kg"
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               
               <button
                 type="button"
@@ -501,6 +576,40 @@ export default function EditProductPage() {
               >
                 + Add Another Size
               </button>
+              
+              {/* Manual In Stock Toggle for Variation Products */}
+              <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={manualInStock} 
+                    onChange={(e) => setManualInStock(e.target.checked)} 
+                    className="w-5 h-5"
+                    disabled={totalStock === 0}
+                  />
+                  <span className="font-medium">
+                    ✅ Product is In Stock
+                    {totalStock === 0 && (
+                      <span className="text-xs text-red-600 ml-2">
+                        (Cannot enable - no stock in any variation)
+                      </span>
+                    )}
+                  </span>
+                </label>
+                {manualInStock && totalStock === 0 && (
+                  <p className="text-xs text-red-600 mt-2">
+                    ⚠️ Product marked as in stock but all variations have zero stock. Please add stock to at least one variation.
+                  </p>
+                )}
+                {!manualInStock && totalStock > 0 && (
+                  <p className="text-xs text-yellow-600 mt-2">
+                    ⚠️ You have {totalStock} units across variations but product is marked out of stock. Check the box above to show as available.
+                  </p>
+                )}
+                <p className="text-xs text-gray-500 mt-2">
+                  💡 The product will only show as "In Stock" on the website if this box is checked AND at least one variation has stock &gt; 0.
+                </p>
+              </div>
             </div>
           )}
 
@@ -545,13 +654,18 @@ export default function EditProductPage() {
             <label className="flex items-center gap-2 cursor-pointer">
               <input 
                 type="checkbox" 
-                checked={product.in_stock} 
-                onChange={(e) => setProduct({...product, in_stock: e.target.checked})} 
+                checked={hasVariations ? manualInStock && totalStock > 0 : manualInStock} 
+                disabled
                 className="w-4 h-4"
-                disabled={hasVariations}
               />
-              <span className="font-medium text-sm">In Stock</span>
-              {hasVariations && <span className="text-xs text-gray-500">(Auto-managed by variations)</span>}
+              <span className="font-medium text-sm">
+                In Stock
+                {hasVariations && (
+                  <span className="text-xs text-gray-500 ml-2">
+                    ({totalStock > 0 ? `${totalStock} units available` : 'No stock available'})
+                  </span>
+                )}
+              </span>
             </label>
             <label className="flex items-center gap-2 cursor-pointer">
               <input 

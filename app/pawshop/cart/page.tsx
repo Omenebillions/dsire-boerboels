@@ -57,8 +57,7 @@ export default function CartPage() {
   };
 
   const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const shipping = subtotal > 50000 ? 0 : 2500;
-  const total = subtotal + shipping;
+  const total = subtotal;
 
   if (loading) {
     return (
@@ -196,15 +195,6 @@ export default function CartPage() {
                   <span>Subtotal ({cart.reduce((sum, i) => sum + i.quantity, 0)} items)</span>
                   <span className="font-medium">₦{subtotal.toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between text-gray-600">
-                  <span>Shipping</span>
-                  <span className="font-medium">{shipping === 0 ? 'FREE' : `₦${shipping.toLocaleString()}`}</span>
-                </div>
-                {shipping > 0 && (
-                  <p className="text-xs text-gray-500">
-                    Free shipping on orders over ₦50,000
-                  </p>
-                )}
                 <div className="border-t pt-3 mt-3">
                   <div className="flex justify-between font-bold text-lg">
                     <span>Total</span>

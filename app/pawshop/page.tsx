@@ -10,7 +10,7 @@ interface Variation {
   price: number;
   compare_price?: number;
   stock: number;
-  in_stock: boolean;
+  in_stock?: boolean;  // Made optional since it might not exist
   sku?: string;
   weight?: string;
 }
@@ -94,12 +94,13 @@ export default function PawshopPage() {
     setCartCount(count);
   };
 
-  // Improved stock helper - respects per-variation in_stock
+  // FIXED: Check stock directly from stock number, not relying on in_stock flag
   const hasStock = (product: Product): boolean => {
     if (product.variations && product.variations.length > 0) {
-      return product.variations.some(v => v.in_stock === true && v.stock > 0);
+      // Check if any variation has stock greater than 0
+      return product.variations.some(v => (v.stock || 0) > 0);
     }
-    return product.in_stock && product.stock > 0;
+    return product.in_stock && (product.stock || 0) > 0;
   };
 
   // Filter by search

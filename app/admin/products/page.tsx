@@ -9,7 +9,6 @@ interface Variation {
   size: string;
   price: number;
   stock: number;
-  in_stock: boolean;
 }
 
 interface Product {
@@ -47,25 +46,25 @@ export default function AdminProductsPage() {
     const { data } = await query.order('created_at', { ascending: false });
     let allProducts = (data as Product[]) || [];
     
-    // Apply stock filter after fetching (since variations need client-side calculation)
+    // Apply stock filter after fetching
     if (stockFilter !== 'all') {
       allProducts = allProducts.filter(product => {
         const hasVariations = product.variations && product.variations.length > 0;
         
         if (hasVariations) {
-          const totalStock = product.variations!.reduce((sum, v) => sum + (v.stock || 0), 0);
-          const hasInStock = product.variations!.some(v => v.in_stock === true && v.stock > 0);
+          const totalStock = product.variations!.reduce((sum, v) => sum + (Number(v.stock) || 0), 0);
           
-          if (stockFilter === 'in-stock') return hasInStock && totalStock > 0;
+          if (stockFilter === 'in-stock') return totalStock > 0;
           if (stockFilter === 'low-stock') {
-            const hasLowStock = product.variations!.some(v => v.stock > 0 && v.stock < 5);
+            const hasLowStock = product.variations!.some(v => Number(v.stock) > 0 && Number(v.stock) < 5);
             return hasLowStock;
           }
-          if (stockFilter === 'out-of-stock') return !hasInStock || totalStock === 0;
+          if (stockFilter === 'out-of-stock') return totalStock === 0;
         } else {
-          if (stockFilter === 'in-stock') return product.in_stock && (product.stock || 0) > 0;
-          if (stockFilter === 'low-stock') return (product.stock || 0) > 0 && (product.stock || 0) < 5;
-          if (stockFilter === 'out-of-stock') return !product.in_stock || (product.stock || 0) === 0;
+          const productStock = Number(product.stock) || 0;
+          if (stockFilter === 'in-stock') return product.in_stock && productStock > 0;
+          if (stockFilter === 'low-stock') return productStock > 0 && productStock < 5;
+          if (stockFilter === 'out-of-stock') return !product.in_stock || productStock === 0;
         }
         return true;
       });
@@ -91,28 +90,30 @@ export default function AdminProductsPage() {
     fetchProducts();
   };
 
-  // Helper function to get product stock info
+  // Get accurate product stock info
   const getProductStockInfo = (product: Product) => {
     const hasVariations = product.variations && product.variations.length > 0;
     
     if (hasVariations) {
-      const totalStock = product.variations!.reduce((sum, v) => sum + (v.stock || 0), 0);
-      const hasInStock = product.variations!.some(v => v.in_stock === true && v.stock > 0);
-      const sizesWithStock = product.variations!.filter(v => v.stock > 0).length;
+      // Calculate total stock from all variations
+      const totalStock = product.variations!.reduce((sum, v) => sum + (Number(v.stock) || 0), 0);
+      const sizesWithStock = product.variations!.filter(v => (Number(v.stock) || 0) > 0).length;
+      const isInStock = totalStock > 0;
       
       return {
         totalStock,
-        isInStock: hasInStock && totalStock > 0,
-        displayText: `${sizesWithStock}/${product.variations!.length} sizes`,
+        isInStock,
+        displayText: totalStock > 0 ? `${sizesWithStock}/${product.variations!.length} sizes (${totalStock} units)` : 'Out of stock',
         stockClass: totalStock > 0 ? 'text-green-600' : 'text-red-600'
       };
     }
     
+    const productStock = Number(product.stock) || 0;
     return {
-      totalStock: product.stock || 0,
-      isInStock: product.in_stock && (product.stock || 0) > 0,
-      displayText: (product.stock || 0).toString(),
-      stockClass: (product.stock || 0) > 5 ? 'text-green-600' : (product.stock || 0) > 0 ? 'text-yellow-600' : 'text-red-600'
+      totalStock: productStock,
+      isInStock: product.in_stock && productStock > 0,
+      displayText: productStock.toString(),
+      stockClass: productStock > 5 ? 'text-green-600' : productStock > 0 ? 'text-yellow-600' : 'text-red-600'
     };
   };
 
@@ -132,9 +133,9 @@ export default function AdminProductsPage() {
     lowStock: products.filter(p => {
       const hasVariations = p.variations && p.variations.length > 0;
       if (hasVariations) {
-        return p.variations!.some(v => v.stock > 0 && v.stock < 5);
+        return p.variations!.some(v => Number(v.stock) > 0 && Number(v.stock) < 5);
       }
-      return (p.stock || 0) > 0 && (p.stock || 0) < 5;
+      return (Number(p.stock) || 0) > 0 && (Number(p.stock) || 0) < 5;
     }).length,
     outOfStock: products.filter(p => {
       const info = getProductStockInfo(p);
@@ -254,12 +255,12 @@ export default function AdminProductsPage() {
                         </div>
                       </td>
                       <td className="p-4 font-medium text-gray-900">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           {product.name}
                           {product.featured && <span className="text-yellow-500 text-xs">⭐</span>}
                           {hasVariations && (
-                            <span className="bg-purple-100 text-purple-600 text-xs px-2 py-0.5 rounded-full">
-                              {product.variations!.length} sizes
+                            <span className="bg-purple-100 text-purple-600 text-xs px-2 py-0.5 rounded-full whitespace-nowrap">
+                              📦 {product.variations!.length} sizes
                             </span>
                           )}
                         </div>
@@ -268,13 +269,13 @@ export default function AdminProductsPage() {
                       <td className="p-4 font-medium text-gray-900">
                         {hasVariations ? (
                           <span className="text-sm">
-                            ₦{Math.min(...product.variations!.map(v => v.price)).toLocaleString()}
-                            {Math.min(...product.variations!.map(v => v.price)) !== Math.max(...product.variations!.map(v => v.price)) && 
-                              ` - ₦${Math.max(...product.variations!.map(v => v.price)).toLocaleString()}`
+                            ₦{Math.min(...product.variations!.map(v => Number(v.price))).toLocaleString()}
+                            {Math.min(...product.variations!.map(v => Number(v.price))) !== Math.max(...product.variations!.map(v => Number(v.price))) && 
+                              ` - ₦${Math.max(...product.variations!.map(v => Number(v.price))).toLocaleString()}`
                             }
                           </span>
                         ) : (
-                          `₦${product.price.toLocaleString()}`
+                          `₦${Number(product.price).toLocaleString()}`
                         )}
                       </td>
                       <td className="p-4">
@@ -286,7 +287,7 @@ export default function AdminProductsPage() {
                         <span className={`px-2 py-1 rounded-full text-xs font-bold ${
                           stockInfo.isInStock ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                         }`}>
-                          {stockInfo.isInStock ? 'In Stock' : 'Out of Stock'}
+                          {stockInfo.isInStock ? '✅ In Stock' : '❌ Out of Stock'}
                         </span>
                       </td>
                       <td className="p-4">

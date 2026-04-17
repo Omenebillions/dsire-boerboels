@@ -23,7 +23,15 @@ interface FormData {
   city: string;
   state: string;
   deliveryMethod: 'pickup' | 'delivery';
+  shippingZone: string;
   notes: string;
+}
+
+interface ShippingZone {
+  id: string;
+  name: string;
+  price: number;
+  areas: string[];
 }
 
 const WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "2347019996837";
@@ -34,6 +42,28 @@ const BANK_DETAILS = {
   accountName: "Dsire Kennel",
   bankName: "GTBank"
 };
+
+// Shipping zones configuration
+const shippingZones: ShippingZone[] = [
+  {
+    id: 'zone1',
+    name: 'Maitama, Gwarinpa, Dawaki, Lugbe, Kubwa, Karu',
+    price: 5500,
+    areas: ['Maitama', 'Gwarinpa', 'Dawaki', 'Lugbe', 'Kubwa', 'Karu']
+  },
+  {
+    id: 'zone2',
+    name: 'Lokogoma, Gudu, Apo, Gaduwa, Durumi, Games village, Suncity, Sunnyvale',
+    price: 4000,
+    areas: ['Lokogoma', 'Gudu', 'Apo', 'Gaduwa', 'Durumi', 'Games village', 'Suncity', 'Sunnyvale']
+  },
+  {
+    id: 'zone3',
+    name: 'All States Outside Abuja (0-2kg, pickup at closest bus terminal)',
+    price: 8000,
+    areas: []
+  }
+];
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -53,6 +83,7 @@ export default function CheckoutPage() {
     city: '',
     state: 'Lagos',
     deliveryMethod: 'delivery',
+    shippingZone: '',
     notes: '',
   });
 
@@ -80,7 +111,10 @@ export default function CheckoutPage() {
   };
 
   const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const total = subtotal;
+  const shippingCost = formData.deliveryMethod === 'delivery' && formData.shippingZone
+    ? shippingZones.find(z => z.id === formData.shippingZone)?.price || 0
+    : 0;
+  const total = subtotal + shippingCost;
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -89,6 +123,9 @@ export default function CheckoutPage() {
 
   const placeOrder = async () => {
     setSubmitting(true);
+
+    const selectedZone = shippingZones.find(z => z.id === formData.shippingZone);
+    const shippingInfo = selectedZone ? `${selectedZone.name} - ₦${selectedZone.price.toLocaleString()}` : 'Pickup';
 
     const orderData = {
       order_reference: orderReference,
@@ -101,7 +138,10 @@ export default function CheckoutPage() {
       delivery_method: formData.deliveryMethod,
       payment_method: 'transfer',
       payment_status: 'pending',
+      subtotal_amount: subtotal,
+      shipping_amount: shippingCost,
       total_amount: total,
+      shipping_zone: shippingInfo,
       items: cart.map(item => ({
         product_id: item.id,
         product_name: item.name,
@@ -157,12 +197,17 @@ export default function CheckoutPage() {
       ? `${formData.address}, ${formData.city}, ${formData.state}`
       : 'Pickup from Kennel (Abuja)';
     
+    const selectedZone = shippingZones.find(z => z.id === formData.shippingZone);
+    const shippingInfo = selectedZone ? `${selectedZone.name} - ₦${selectedZone.price.toLocaleString()}` : 'Pickup';
+    
     const message = `🔔 *NEW ORDER RECEIVED!* 🔔%0A%0A` +
       `━━━━━━━━━━━━━━━━━━━━━%0A` +
       `📋 *ORDER REFERENCE:*%0A${orderReference}%0A%0A` +
       `━━━━━━━━━━━━━━━━━━━━━%0A` +
       `🛍️ *ITEMS PURCHASED:*%0A${itemsList}%0A%0A` +
-      `💰 *TOTAL AMOUNT:*%0A₦${total.toLocaleString()}%0A%0A` +
+      `💰 *SUBTOTAL:*%0A₦${subtotal.toLocaleString()}%0A` +
+      `🚚 *SHIPPING:*%0A₦${shippingCost.toLocaleString()}%0A` +
+      `💵 *TOTAL:*%0A₦${total.toLocaleString()}%0A%0A` +
       `━━━━━━━━━━━━━━━━━━━━━%0A` +
       `👤 *CUSTOMER DETAILS:*%0A` +
       `Name: ${formData.firstName} ${formData.lastName}%0A` +
@@ -171,6 +216,7 @@ export default function CheckoutPage() {
       `━━━━━━━━━━━━━━━━━━━━━%0A` +
       `🚚 *DELIVERY INFORMATION:*%0A` +
       `Method: ${formData.deliveryMethod === 'delivery' ? 'Door Delivery' : 'Pickup'}%0A` +
+      `Shipping Zone: ${shippingInfo}%0A` +
       `Address: ${deliveryInfo}%0A%0A` +
       `📝 *NOTES:*%0A${formData.notes || 'No special instructions'}%0A%0A` +
       `━━━━━━━━━━━━━━━━━━━━━%0A` +
@@ -263,6 +309,14 @@ export default function CheckoutPage() {
                     <span>₦{(item.price * item.quantity).toLocaleString()}</span>
                   </div>
                 ))}
+                <div className="flex justify-between text-sm text-gray-600 pt-2">
+                  <span>Subtotal</span>
+                  <span>₦{subtotal.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm text-gray-600">
+                  <span>Shipping</span>
+                  <span>₦{shippingCost.toLocaleString()}</span>
+                </div>
                 <div className="flex justify-between font-bold mt-2 pt-2 border-t">
                   <span>Total</span>
                   <span className="text-green-600">₦{total.toLocaleString()}</span>
@@ -376,13 +430,14 @@ export default function CheckoutPage() {
                         onChange={handleInputChange}
                         className="w-4 h-4"
                       />
-                      <span>Pickup from Kennel</span>
+                      <span>Pickup from Kennel (Free)</span>
                     </label>
                   </div>
                 </div>
 
                 {formData.deliveryMethod === 'delivery' && (
                   <div className="space-y-4">
+                    {/* Address Fields */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Address *
@@ -428,13 +483,51 @@ export default function CheckoutPage() {
                         </select>
                       </div>
                     </div>
+
+                    {/* Shipping Zone Selection */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-3">
+                        Select Shipping Zone *
+                      </label>
+                      <div className="space-y-3">
+                        {shippingZones.map((zone) => (
+                          <label
+                            key={zone.id}
+                            className={`flex items-start gap-3 p-4 border rounded-xl cursor-pointer transition-all ${
+                              formData.shippingZone === zone.id
+                                ? 'border-green-500 bg-green-50'
+                                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="shippingZone"
+                              value={zone.id}
+                              checked={formData.shippingZone === zone.id}
+                              onChange={handleInputChange}
+                              className="mt-1 w-4 h-4"
+                              required
+                            />
+                            <div className="flex-1">
+                              <p className="font-medium text-sm">{zone.name}</p>
+                              <p className="text-green-600 font-bold text-base mt-1">
+                                ₦{zone.price.toLocaleString()}
+                              </p>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 )}
 
                 {formData.deliveryMethod === 'pickup' && (
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                     <p className="text-sm text-blue-800">
-                      📍 Pickup Location: Dsire Boerboels Kennel, Abuja
+                      📍 Pickup Location: Dsire Kennel, Abuja
+                    </p>
+                    <p className="text-xs text-blue-600 mt-1">
+                      Free pickup - No shipping fee
                     </p>
                   </div>
                 )}
@@ -509,6 +602,18 @@ export default function CheckoutPage() {
                     <span>Subtotal</span>
                     <span className="font-medium">₦{subtotal.toLocaleString()}</span>
                   </div>
+                  {formData.deliveryMethod === 'delivery' && formData.shippingZone && (
+                    <div className="flex justify-between text-gray-600">
+                      <span>Shipping</span>
+                      <span className="font-medium">₦{shippingCost.toLocaleString()}</span>
+                    </div>
+                  )}
+                  {formData.deliveryMethod === 'pickup' && (
+                    <div className="flex justify-between text-gray-600">
+                      <span>Shipping</span>
+                      <span className="font-medium text-green-600">Free Pickup</span>
+                    </div>
+                  )}
                   <div className="flex justify-between font-bold text-lg pt-2 border-t">
                     <span>Total</span>
                     <span className="text-green-600">₦{total.toLocaleString()}</span>
