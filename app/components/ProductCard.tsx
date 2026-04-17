@@ -1,3 +1,4 @@
+// app/components/Shop/ProductCard.tsx
 "use client";
 import Image from "next/image";
 import Link from "next/link";
@@ -7,7 +8,7 @@ interface Variation {
   price: number;
   compare_price?: number;
   stock: number;
-  in_stock: boolean;
+  in_stock?: boolean;  // ← Made optional to match page
   sku?: string;
   weight?: string;
 }
@@ -32,38 +33,34 @@ interface Product {
 export default function ProductCard({ product }: { product: Product }) {
   const hasVariations = Boolean(product.variations?.length);
 
-  // Price range calculation
+  // Price range
   const prices = hasVariations 
     ? product.variations!.map(v => v.price) 
     : [product.price];
-
   const minPrice = Math.min(...prices);
   const maxPrice = Math.max(...prices);
   const hasMultiplePrices = hasVariations && minPrice !== maxPrice;
-
   const priceDisplay = hasMultiplePrices
     ? `₦${minPrice.toLocaleString()} - ₦${maxPrice.toLocaleString()}`
     : `₦${minPrice.toLocaleString()}`;
 
-  // Stock availability (production-ready logic)
+  // Stock availability – only check stock > 0, ignore in_stock flag
   const isInStock = hasVariations
-    ? product.variations!.some((v) => v.in_stock === true && v.stock > 0)
+    ? product.variations!.some((v) => (v.stock || 0) > 0)
     : Boolean(product.in_stock && (product.stock || 0) > 0);
 
-  // Discount calculation (only for non-variation products)
+  // Discount (only for non-variation)
   const discountPercentage = !hasVariations && 
     product.compare_price && 
     product.compare_price > product.price
     ? Math.round(((product.compare_price - product.price) / product.compare_price) * 100)
     : 0;
 
-  // Image source
   const imageSrc = product.images?.[0] || product.image || "/product-placeholder.jpg";
 
   return (
-    <Link href={`/pawshop/${product.id}`} className="group block">
+    <Link href={`/pawshop/product/${product.id}`} className="group block">
       <div className="bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100 h-full flex flex-col">
-        {/* Image Container */}
         <div className="relative aspect-square overflow-hidden bg-gray-100">
           <Image
             src={imageSrc}
@@ -73,27 +70,19 @@ export default function ProductCard({ product }: { product: Product }) {
             sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
             priority={false}
           />
-
-          {/* Category Badge */}
           <span className="absolute top-3 left-3 bg-white/95 backdrop-blur-sm text-xs font-semibold px-3 py-1 rounded-full shadow-sm z-10">
             {product.category}
           </span>
-
-          {/* Discount Badge */}
           {discountPercentage > 0 && !hasVariations && (
             <span className="absolute top-3 right-3 bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full z-10">
               -{discountPercentage}%
             </span>
           )}
-
-          {/* Variations Badge */}
           {hasVariations && isInStock && (
             <span className="absolute bottom-3 left-3 bg-black/80 text-white text-xs font-medium px-3 py-1 rounded-full z-10">
               {product.variations!.length} sizes
             </span>
           )}
-
-          {/* Out of Stock Overlay */}
           {!isInStock && (
             <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-20">
               <span className="bg-white text-black px-6 py-2 rounded-full text-sm font-bold tracking-wider">
@@ -102,39 +91,24 @@ export default function ProductCard({ product }: { product: Product }) {
             </div>
           )}
         </div>
-
-        {/* Content */}
         <div className="p-4 flex flex-col flex-1">
-          {/* Brand */}
-          {product.brand && (
-            <p className="text-xs text-gray-500 mb-1 font-medium">{product.brand}</p>
-          )}
-
-          {/* Product Name */}
+          {product.brand && <p className="text-xs text-gray-500 mb-1 font-medium">{product.brand}</p>}
           <h3 className="font-semibold text-lg leading-tight mb-3 line-clamp-2 group-hover:text-black transition-colors">
             {product.name}
           </h3>
-
-          {/* Price */}
           <div className="flex items-baseline gap-2 mb-4">
-            <span className="text-2xl font-bold text-gray-900">
-              {priceDisplay}
-            </span>
+            <span className="text-2xl font-bold text-gray-900">{priceDisplay}</span>
             {discountPercentage > 0 && !hasVariations && (
               <span className="text-sm text-gray-400 line-through">
                 ₦{product.compare_price!.toLocaleString()}
               </span>
             )}
           </div>
-
-          {/* Variation Info */}
           {hasVariations && (
             <p className="text-xs text-gray-500 mb-4">
               Select from {product.variations!.length} size options
             </p>
           )}
-
-          {/* Action Button */}
           <div className="mt-auto pt-2">
             <button
               className={`w-full py-3 rounded-xl font-semibold text-sm transition-all ${
@@ -145,7 +119,7 @@ export default function ProductCard({ product }: { product: Product }) {
               onClick={(e) => {
                 e.preventDefault();
                 if (isInStock) {
-                  window.location.href = `/pawshop/${product.id}`;
+                  window.location.href = `/pawshop/product/${product.id}`;
                 }
               }}
               disabled={!isInStock}
