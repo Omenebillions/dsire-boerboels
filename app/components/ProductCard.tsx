@@ -56,7 +56,7 @@ export default function ProductCard({ product }: { product: Product }) {
           
           {hasVariations && isInStock && (
             <span className="absolute bottom-3 left-3 bg-black/80 text-white text-xs font-medium px-3 py-1 rounded-full z-10">
-              {product.variations.length} sizes
+              {product.variations?.length ?? 0} sizes
             </span>
           )}
           

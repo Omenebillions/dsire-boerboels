@@ -4,32 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useState } from 'react';
 import { hasProductStock } from '@/lib/productStock';
-
-// Define types locally if no central file exists
-interface Variation {
-  size: string;
-  price: number;
-  compare_price?: number;
-  stock: number;
-  in_stock: boolean;
-  sku?: string;
-  weight?: string;
-}
-
-interface Product {
-  id: number;
-  name: string;
-  price: number;
-  compare_price?: number;
-  description?: string;
-  images: string[];
-  category: string;
-  in_stock: boolean;
-  stock: number;
-  featured?: boolean;
-  brand?: string;
-  variations?: Variation[];
-}
+import type { Product } from '@/lib/productTypes';
 
 interface ProductCardProps {
   product: Product;
@@ -39,7 +14,8 @@ export default function ProductCard({ product }: ProductCardProps) {
   const [isAdding, setIsAdding] = useState(false);
 
   // Check if product has variations
-  const hasVariations = product.variations && product.variations.length > 0;
+  const variations = product.variations ?? [];
+  const hasVariations = variations.length > 0;
 
   // Discount calculation (only for non-variation products)
   const discount = product.compare_price && product.compare_price > product.price && !hasVariations
@@ -50,11 +26,11 @@ export default function ProductCard({ product }: ProductCardProps) {
 
   // Price display with range support for variations
   const minPrice = hasVariations
-    ? Math.min(...product.variations!.map((v) => v.price))
+    ? Math.min(...variations.map((v) => Number(v.price ?? 0)))
     : product.price;
 
   const maxPrice = hasVariations
-    ? Math.max(...product.variations!.map((v) => v.price))
+    ? Math.max(...variations.map((v) => Number(v.price ?? 0)))
     : product.price;
 
   const hasMultiplePrices = hasVariations && minPrice !== maxPrice;
@@ -75,7 +51,7 @@ export default function ProductCard({ product }: ProductCardProps) {
     setIsAdding(true);
 
     const cart = JSON.parse(localStorage.getItem('cart') || '[]') as Array<{
-      id: number;
+      id: number | string;
       name: string;
       price: number;
       image: string;
@@ -124,7 +100,7 @@ export default function ProductCard({ product }: ProductCardProps) {
         {/* Variations Badge */}
         {hasVariations && isInStock && (
           <span className="absolute bottom-2 left-2 bg-black/70 text-white text-xs font-semibold px-2 py-1 rounded-full">
-            {product.variations!.length} sizes
+            {variations.length} sizes
           </span>
         )}
 

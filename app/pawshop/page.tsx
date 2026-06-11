@@ -4,33 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import ProductCard from '@/app/components/Shop/ProductCard';
 import { supabase } from '@/lib/supabase';
-
-interface Variation {
-  size?: string;
-  price?: number;
-  compare_price?: number;
-  stock?: number;
-  in_stock?: boolean;
-  sku?: string;
-  weight?: string;
-}
-
-interface Product {
-  id: number;
-  name: string;
-  price: number;
-  compare_price?: number;
-  description: string;
-  images: string[];
-  category: string;
-  in_stock: boolean;
-  featured: boolean;
-  stock: number;
-  weight?: string;
-  brand?: string;
-  variations?: Variation[];
-  created_at?: string;
-}
+import type { Product, ProductVariation } from '@/lib/productTypes';
 
 interface SupabaseProduct {
   id: number;
@@ -79,10 +53,11 @@ export default function PawshopPage() {
     compare_price: product.compare_price ? asNumber(product.compare_price) : undefined,
     variations: (product.variations || []).map((variation) => ({
       ...variation,
+      size: typeof variation.size === 'string' ? variation.size : '',
       stock: asNumber(variation.stock),
       price: asNumber(variation.price),
       compare_price: variation.compare_price ? asNumber(variation.compare_price) : undefined,
-    })),
+    })) as ProductVariation[],
   });
 
   const loadProducts = async () => {
