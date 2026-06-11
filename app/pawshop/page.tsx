@@ -5,6 +5,16 @@ import Link from 'next/link';
 import ProductCard from '@/app/components/Shop/ProductCard';
 import { supabase } from '@/lib/supabase';
 
+interface Variation {
+  size?: string;
+  price?: number;
+  compare_price?: number;
+  stock?: number;
+  in_stock?: boolean;
+  sku?: string;
+  weight?: string;
+}
+
 interface Product {
   id: number;
   name: string;
@@ -18,11 +28,28 @@ interface Product {
   stock: number;
   weight?: string;
   brand?: string;
-  variations?: any[];
+  variations?: Variation[];
   created_at?: string;
 }
 
-const WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "2347019996837";
+interface SupabaseProduct {
+  id: number;
+  name: string;
+  price: number | string;
+  compare_price?: number | string;
+  description: string;
+  images: string[];
+  category: string;
+  in_stock: boolean | string | null;
+  featured: boolean | string | null;
+  stock: number | string | null;
+  weight?: string;
+  brand?: string;
+  variations?: Array<Record<string, unknown>>;
+  created_at?: string;
+}
+
+const WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '2347019996837';
 
 export default function PawshopPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -32,55 +59,105 @@ export default function PawshopPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadProducts();
-    updateCartCount();
-   
-    window.addEventListener('cartUpdated', updateCartCount);
-    return () => window.removeEventListener('cartUpdated', updateCartCount);
-  }, []);
+  const asNumber = (value: unknown): number => {
+    if (typeof value === 'number') {
+      return value;
+    }
+    if (typeof value === 'string') {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+    return 0;
+  };
+
+  const normalizeProduct = (product: SupabaseProduct): Product => ({
+    ...product,
+    stock: asNumber(product.stock),
+    in_stock: product.in_stock === true,
+    featured: product.featured === true,
+    price: asNumber(product.price),
+    compare_price: product.compare_price ? asNumber(product.compare_price) : undefined,
+    variations: (product.variations || []).map((variation) => ({
+      ...variation,
+      stock: asNumber(variation.stock),
+      price: asNumber(variation.price),
+      compare_price: variation.compare_price ? asNumber(variation.compare_price) : undefined,
+    })),
+  });
 
   const loadProducts = async () => {
     setLoading(true);
-   
+
     const { data: productsData, error } = await supabase
       .from('products')
       .select('*')
       .order('created_at', { ascending: false });
-   
+
     if (error) {
       console.error('Error loading products:', error);
       setProducts([]);
-    } else if (productsData) {
-      // Ensure all stock values are numbers
-      const normalizedProducts = productsData.map(p => ({
-        ...p,
-        stock: typeof p.stock === 'number' ? p.stock : Number(p.stock) || 0,
-        in_stock: p.in_stock === true,
-        variations: p.variations?.map((v: any) => ({
-          ...v,
-          stock: typeof v.stock === 'number' ? v.stock : Number(v.stock) || 0,
-          price: typeof v.price === 'number' ? v.price : Number(v.price) || 0
-        }))
-      }));
-      
-      console.log('Products loaded:', normalizedProducts.map(p => ({ name: p.name, stock: p.stock })));
+      setCategories(['all']);
+      setLoading(false);
+      return;
+    }
+
+    if (productsData) {
+      const normalizedProducts = productsData.map((product) => normalizeProduct(product as SupabaseProduct));
       setProducts(normalizedProducts);
-      
-      const uniqueCategories = ['all', ...new Set(productsData.map((p: any) => p.category))];
+
+      const uniqueCategories = ['all', ...new Set(productsData.map((product) => product.category))];
       setCategories(uniqueCategories);
     }
-    
+
     setLoading(false);
   };
 
   const updateCartCount = () => {
-    const cart = JSON.parse(localStorage.getItem('cart') || '[]');
-    const count = cart.reduce((sum: number, item: any) => sum + item.quantity, 0);
+    const cart = JSON.parse(localStorage.getItem('cart') || '[]') as Array<{ quantity: number }>;
+    const count = cart.reduce((sum: number, item) => sum + item.quantity, 0);
     setCartCount(count);
   };
 
-  const filteredProducts = products.filter(product =>
+  useEffect(() => {
+    const initialize = async () => {
+      await loadProducts();
+      updateCartCount();
+    };
+
+    void initialize();
+
+    window.addEventListener('cartUpdated', updateCartCount);
+    return () => window.removeEventListener('cartUpdated', updateCartCount);
+  }, []);
+
+  useEffect(() => {
+    const filterProducts = async () => {
+      if (selectedCategory === 'all') {
+        await loadProducts();
+      } else {
+        setLoading(true);
+        const { data, error } = await supabase
+          .from('products')
+          .select('*')
+          .eq('category', selectedCategory)
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('Error loading products by category:', error);
+          setProducts([]);
+        } else {
+          const normalizedProducts = (data || []).map((product) => normalizeProduct(product as SupabaseProduct));
+          setProducts(normalizedProducts);
+        }
+
+        setLoading(false);
+      }
+    };
+
+    void filterProducts();
+  }, [selectedCategory]);
+
+  const filteredProducts = products.filter((product) =>
     product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     product.description?.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -93,8 +170,8 @@ export default function PawshopPage() {
             <div className="h-8 bg-gray-200 rounded w-48 mb-2"></div>
             <div className="h-4 bg-gray-200 rounded w-64 mb-8"></div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {[...Array(8)].map((_, i) => (
-                <div key={i} className="bg-gray-200 rounded-xl h-64"></div>
+              {[...Array(8)].map((_, index) => (
+                <div key={index} className="bg-gray-200 rounded-xl h-64"></div>
               ))}
             </div>
           </div>
@@ -112,7 +189,7 @@ export default function PawshopPage() {
               <h1 className="text-3xl md:text-4xl font-bold">Dsire Pawshop</h1>
               <p className="text-gray-600">Everything your Pet needs</p>
             </div>
-           
+
             <div className="flex items-center gap-4">
               <input
                 type="text"
@@ -121,7 +198,7 @@ export default function PawshopPage() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full md:w-64 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-black"
               />
-             
+
               <Link href="/pawshop/cart" className="relative">
                 <div className="bg-black text-white p-3 rounded-full hover:bg-gray-800 transition">
                   🛒
@@ -176,7 +253,7 @@ export default function PawshopPage() {
                 {filteredProducts.length} products found
               </p>
             </div>
-           
+
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
               {filteredProducts.map((product) => (
                 <ProductCard key={product.id} product={product} />

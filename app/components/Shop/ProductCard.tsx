@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useState } from 'react';
+import { hasProductStock } from '@/lib/productStock';
 
 // Define types locally if no central file exists
 interface Variation {
@@ -45,10 +46,7 @@ export default function ProductCard({ product }: ProductCardProps) {
     ? Math.round(((product.compare_price - product.price) / product.compare_price) * 100)
     : 0;
 
-  // Improved stock logic that respects per-variation `in_stock`
-  const isInStock = hasVariations
-    ? product.variations!.some((v) => v.in_stock === true && v.stock > 0)
-    : Boolean(product.in_stock && (product.stock || 0) > 0);
+  const isInStock = hasProductStock(product);
 
   // Price display with range support for variations
   const minPrice = hasVariations
@@ -76,8 +74,14 @@ export default function ProductCard({ product }: ProductCardProps) {
     // Only proceed with direct add for non-variation products
     setIsAdding(true);
 
-    const cart = JSON.parse(localStorage.getItem('cart') || '[]');
-    const existingItem = cart.find((item: any) => item.id === product.id);
+    const cart = JSON.parse(localStorage.getItem('cart') || '[]') as Array<{
+      id: number;
+      name: string;
+      price: number;
+      image: string;
+      quantity: number;
+    }>;
+    const existingItem = cart.find((item) => item.id === product.id);
 
     if (existingItem) {
       existingItem.quantity += 1;

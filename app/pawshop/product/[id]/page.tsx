@@ -1,72 +1,127 @@
-// app/pawshop/cart/page.tsx
+// app/pawshop/product/[id]/page.tsx
 "use client";
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
+import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { supabase } from '@/lib/supabase';
 
-interface CartItem {
+interface Variation {
+  size: string;
+  price: number;
+  compare_price?: number;
+  stock: number;
+  sku?: string;
+  weight?: string;
+}
+
+interface Product {
   id: number;
   name: string;
   price: number;
-  image: string;
-  quantity: number;
+  compare_price?: number;
+  description: string;
+  images: string[];
+  category: string;
+  in_stock: boolean;
+  stock: number;
+  weight?: string;
+  brand?: string;
+  variations?: Variation[];
+  created_at?: string;
 }
 
-export default function CartPage() {
+export default function ProductDetailPage() {
+  const params = useParams();
   const router = useRouter();
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
-  const [imageErrors, setImageErrors] = useState<{ [key: string]: boolean }>({});
-  const [loadedImages, setLoadedImages] = useState<{ [key: string]: boolean }>({});
+  const [selectedVariation, setSelectedVariation] = useState<Variation | null>(null);
+  const [quantity, setQuantity] = useState(1);
+  const [addingToCart, setAddingToCart] = useState(false);
 
   useEffect(() => {
-    loadCart();
-  }, []);
+    loadProduct();
+  }, [params.id]);
 
-  const loadCart = () => {
-    const savedCart = JSON.parse(localStorage.getItem('cart') || '[]');
-    setCart(savedCart);
+  const loadProduct = async () => {
+    setLoading(true);
+    
+    const { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .eq('id', params.id)
+      .single();
+    
+    if (error) {
+      console.error('Error loading product:', error);
+      setProduct(null);
+    } else if (data) {
+      // Normalize the data
+      const normalizedProduct = {
+        ...data,
+        stock: Number(data.stock) || 0,
+        variations: data.variations?.map((v: any) => ({
+          ...v,
+          stock: Number(v.stock) || 0,
+          price: Number(v.price) || 0
+        }))
+      };
+      
+      setProduct(normalizedProduct);
+      
+      // Select first variation with stock if available
+      if (normalizedProduct.variations?.length) {
+        const inStockVariation = normalizedProduct.variations.find((v: Variation) => v.stock > 0);
+        setSelectedVariation(inStockVariation || normalizedProduct.variations[0]);
+      }
+    }
+    
     setLoading(false);
   };
 
-  const updateQuantity = (id: number, newQuantity: number) => {
-    if (newQuantity < 1) return;
+  const addToCart = () => {
+    if (!product) return;
     
-    const updatedCart = cart.map(item => 
-      item.id === id ? { ...item, quantity: newQuantity } : item
+    const cartItem = {
+      id: product.id,
+      name: product.name,
+      price: selectedVariation ? selectedVariation.price : product.price,
+      image: product.images?.[0] || '/product-placeholder.jpg',
+      quantity: quantity,
+      variation: selectedVariation ? {
+        size: selectedVariation.size,
+        price: selectedVariation.price,
+        stock: selectedVariation.stock
+      } : undefined
+    };
+    
+    // Get existing cart
+    const cart = JSON.parse(localStorage.getItem('cart') || '[]');
+    
+    // Check if item already exists (with same variation)
+    const existingIndex = cart.findIndex((item: any) => 
+      item.id === product.id && 
+      JSON.stringify(item.variation) === JSON.stringify(cartItem.variation)
     );
     
-    setCart(updatedCart);
-    localStorage.setItem('cart', JSON.stringify(updatedCart));
-    window.dispatchEvent(new Event('cartUpdated'));
-  };
-
-  const removeItem = (id: number) => {
-    const updatedCart = cart.filter(item => item.id !== id);
-    setCart(updatedCart);
-    localStorage.setItem('cart', JSON.stringify(updatedCart));
-    window.dispatchEvent(new Event('cartUpdated'));
-  };
-
-  const clearCart = () => {
-    if (confirm('Clear all items from your cart?')) {
-      setCart([]);
-      localStorage.removeItem('cart');
-      window.dispatchEvent(new Event('cartUpdated'));
+    if (existingIndex >= 0) {
+      // Update quantity
+      cart[existingIndex].quantity += quantity;
+    } else {
+      // Add new item
+      cart.push(cartItem);
     }
-  };
-
-  const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const total = subtotal;
-
-  // Get a clean image URL with proper fallback
-  const getImageUrl = (item: CartItem) => {
-    if (imageErrors[item.id]) return null;
-    if (item.image && item.image.trim() !== '' && item.image !== '/shop/placeholder.jpg') {
-      return item.image;
-    }
-    return null;
+    
+    // Save to localStorage
+    localStorage.setItem('cart', JSON.stringify(cart));
+    
+    // Trigger cart update event
+    window.dispatchEvent(new Event('cartUpdated'));
+    
+    // Show feedback
+    setAddingToCart(true);
+    setTimeout(() => setAddingToCart(false), 1000);
   };
 
   if (loading) {
@@ -74,11 +129,15 @@ export default function CartPage() {
       <div className="min-h-screen bg-gray-50 py-12">
         <div className="max-w-7xl mx-auto px-4">
           <div className="animate-pulse">
-            <div className="h-8 bg-gray-200 rounded w-48 mb-8"></div>
-            <div className="space-y-4">
-              {[...Array(2)].map((_, i) => (
-                <div key={i} className="h-32 bg-gray-200 rounded"></div>
-              ))}
+            <div className="h-8 bg-gray-200 rounded w-48 mb-6"></div>
+            <div className="grid md:grid-cols-2 gap-8">
+              <div className="h-96 bg-gray-200 rounded-xl"></div>
+              <div className="space-y-4">
+                <div className="h-8 bg-gray-200 rounded w-3/4"></div>
+                <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                <div className="h-12 bg-gray-200 rounded w-1/3"></div>
+                <div className="h-24 bg-gray-200 rounded"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -86,19 +145,19 @@ export default function CartPage() {
     );
   }
 
-  if (cart.length === 0) {
+  if (!product) {
     return (
-      <div className="min-h-screen bg-gray-50 py-16">
+      <div className="min-h-screen bg-gray-50 py-12">
         <div className="max-w-7xl mx-auto px-4 text-center">
-          <div className="bg-white rounded-2xl shadow-sm border border-dashed border-gray-300 p-12 max-w-lg mx-auto">
-            <div className="text-7xl mb-4">🛒</div>
-            <h1 className="text-3xl font-bold mb-3">Your Cart is Empty</h1>
-            <p className="text-gray-500 mb-8">Looks like you haven't added any items yet.</p>
+          <div className="bg-white rounded-2xl shadow-sm p-12 max-w-lg mx-auto">
+            <div className="text-6xl mb-4">🔍</div>
+            <h1 className="text-2xl font-bold mb-3">Product Not Found</h1>
+            <p className="text-gray-500 mb-6">The product you're looking for doesn't exist or has been removed.</p>
             <Link 
               href="/pawshop" 
-              className="inline-block bg-black text-white px-8 py-3 rounded-full font-bold hover:bg-gray-800 transition shadow-lg"
+              className="inline-block bg-black text-white px-6 py-3 rounded-lg font-bold hover:bg-gray-800 transition"
             >
-              Continue Shopping
+              Back to Shop
             </Link>
           </div>
         </div>
@@ -106,147 +165,182 @@ export default function CartPage() {
     );
   }
 
+  const hasVariations = product.variations && product.variations.length > 0;
+  const currentPrice = selectedVariation ? selectedVariation.price : product.price;
+  const currentStock = hasVariations 
+    ? (selectedVariation?.stock || 0)
+    : product.stock;
+  const isInStock = currentStock > 0;
+
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold">Shopping Cart</h1>
-          <button
-            onClick={clearCart}
-            className="text-sm text-red-600 hover:text-red-700 flex items-center gap-1"
-          >
-            <span>🗑️</span> Clear Cart
-          </button>
-        </div>
-
-        <div className="grid lg:grid-cols-3 gap-8">
-          {/* Cart Items */}
-          <div className="lg:col-span-2 space-y-4">
-            {cart.map((item) => {
-              const imageUrl = getImageUrl(item);
-              const isImageLoaded = loadedImages[item.id];
-              
-              return (
-                <div key={item.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex gap-4 hover:shadow-md transition">
-                  {/* Product Image */}
-                  <Link href={`/pawshop/product/${item.id}`} className="flex-shrink-0">
-                    <div className="relative w-24 h-24 bg-gray-100 rounded-lg overflow-hidden">
-                      {/* Loading Skeleton */}
-                      {!isImageLoaded && imageUrl && (
-                        <div className="absolute inset-0 bg-gradient-to-r from-gray-100 via-gray-200 to-gray-100 animate-pulse" />
-                      )}
-                      
-                      {/* Actual Image */}
-                      {imageUrl ? (
-                        <Image
-                          src={imageUrl}
-                          alt={item.name}
-                          fill
-                          className={`object-cover transition-opacity duration-300 ${isImageLoaded ? 'opacity-100' : 'opacity-0'}`}
-                          onLoad={() => {
-                            setLoadedImages(prev => ({ ...prev, [item.id]: true }));
-                          }}
-                          onError={() => {
-                            setImageErrors(prev => ({ ...prev, [item.id]: true }));
-                            setLoadedImages(prev => ({ ...prev, [item.id]: true }));
-                          }}
-                          priority={false}
-                          sizes="96px"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-3xl text-gray-400">
-                          🛍️
-                        </div>
-                      )}
-                    </div>
-                  </Link>
-
-                  {/* Product Details */}
-                  <div className="flex-1">
-                    <Link href={`/pawshop/product/${item.id}`}>
-                      <h3 className="font-bold text-lg hover:text-yellow-600 transition line-clamp-1">
-                        {item.name}
-                      </h3>
-                    </Link>
-                    <p className="text-green-600 font-bold mt-1">₦{item.price.toLocaleString()}</p>
-                    
-                    <div className="flex items-center justify-between mt-3">
-                      <div className="flex items-center border rounded-lg overflow-hidden">
-                        <button
-                          onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                          className="px-3 py-1 bg-gray-100 hover:bg-gray-200 transition font-bold"
-                        >
-                          -
-                        </button>
-                        <span className="px-4 py-1 font-medium">{item.quantity}</span>
-                        <button
-                          onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                          className="px-3 py-1 bg-gray-100 hover:bg-gray-200 transition font-bold"
-                        >
-                          +
-                        </button>
-                      </div>
-                      <button
-                        onClick={() => removeItem(item.id)}
-                        className="text-red-500 hover:text-red-600 text-sm flex items-center gap-1"
-                      >
-                        <span>✕</span> Remove
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Item Total */}
-                  <div className="text-right min-w-[100px]">
-                    <p className="text-sm text-gray-500">Total</p>
-                    <p className="font-bold text-lg">₦{(item.price * item.quantity).toLocaleString()}</p>
-                  </div>
-                </div>
-              );
-            })}
-
-            {/* Continue Shopping Link */}
-            <Link 
-              href="/pawshop" 
-              className="inline-flex items-center gap-2 text-gray-600 hover:text-black transition mt-4"
-            >
-              <span>←</span> Continue Shopping
-            </Link>
-          </div>
-
-          {/* Order Summary */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 sticky top-24">
-              <h2 className="text-xl font-bold mb-4">Order Summary</h2>
-              
-              <div className="space-y-3 mb-4">
-                <div className="flex justify-between text-gray-600">
-                  <span>Subtotal ({cart.reduce((sum, i) => sum + i.quantity, 0)} items)</span>
-                  <span className="font-medium">₦{subtotal.toLocaleString()}</span>
-                </div>
-                <div className="border-t pt-3 mt-3">
-                  <div className="flex justify-between font-bold text-lg">
-                    <span>Total</span>
-                    <span className="text-green-600">₦{total.toLocaleString()}</span>
-                  </div>
-                </div>
+        {/* Back Button */}
+        <Link 
+          href="/pawshop" 
+          className="inline-flex items-center gap-2 text-gray-600 hover:text-black transition mb-6"
+        >
+          <span>←</span> Back to Shop
+        </Link>
+        
+        {/* Product Container */}
+        <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+          <div className="grid md:grid-cols-2 gap-8 p-6 lg:p-8">
+            
+            {/* Product Images */}
+            <div className="space-y-4">
+              <div className="relative aspect-square bg-gray-100 rounded-xl overflow-hidden">
+                <Image
+                  src={product.images?.[0] || '/product-placeholder.jpg'}
+                  alt={product.name}
+                  fill
+                  className="object-cover"
+                  sizes="(max-width: 768px) 100vw, 50vw"
+                  priority
+                />
               </div>
-
-              <Link
-                href="/pawshop/checkout"
-                className="w-full bg-green-600 text-white py-4 rounded-xl font-bold hover:bg-green-700 transition shadow-lg text-lg mb-3 text-center block"
-              >
-                Proceed to Checkout
-              </Link>
-
-              {/* Payment Methods */}
-              <div className="mt-4 pt-4 border-t">
-                <p className="text-xs text-gray-500 text-center mb-2">We accept:</p>
-                <div className="flex justify-center gap-3 text-sm">
-                  <span className="bg-gray-100 px-2 py-1 rounded">💵 Cash</span>
-                  <span className="bg-gray-100 px-2 py-1 rounded">📲 Transfer</span>
-                  <span className="bg-gray-100 px-2 py-1 rounded">💳 POS</span>
+              
+              {/* Thumbnail Gallery */}
+              {product.images && product.images.length > 1 && (
+                <div className="grid grid-cols-4 gap-3">
+                  {product.images.slice(1, 5).map((img, idx) => (
+                    <div key={idx} className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition">
+                      <Image
+                        src={img}
+                        alt={`${product.name} ${idx + 2}`}
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 768px) 25vw, 10vw"
+                      />
+                    </div>
+                  ))}
                 </div>
+              )}
+            </div>
+            
+            {/* Product Info */}
+            <div className="space-y-6">
+              {/* Title & Brand */}
+              <div>
+                <h1 className="text-3xl lg:text-4xl font-bold mb-2">{product.name}</h1>
+                {product.brand && (
+                  <p className="text-gray-500 text-lg">{product.brand}</p>
+                )}
+                <p className="text-sm text-gray-400 mt-1">{product.category}</p>
+              </div>
+              
+              {/* Price */}
+              <div className="text-3xl lg:text-4xl font-bold text-green-600">
+                ₦{currentPrice.toLocaleString()}
+                {product.compare_price && product.compare_price > currentPrice && (
+                  <span className="text-lg text-gray-400 line-through ml-3">
+                    ₦{product.compare_price.toLocaleString()}
+                  </span>
+                )}
+              </div>
+              
+              {/* Variation Selector */}
+              {hasVariations && (
+                <div className="space-y-3">
+                  <label className="font-medium text-gray-700">Select Size:</label>
+                  <div className="flex gap-3 flex-wrap">
+                    {product.variations!.map((variation) => {
+                      const isOutOfStock = variation.stock === 0;
+                      const isSelected = selectedVariation?.size === variation.size;
+                      
+                      return (
+                        <button
+                          key={variation.size}
+                          onClick={() => !isOutOfStock && setSelectedVariation(variation)}
+                          disabled={isOutOfStock}
+                          className={`
+                            px-6 py-2 rounded-full border-2 transition-all
+                            ${isSelected 
+                              ? 'bg-black text-white border-black' 
+                              : isOutOfStock
+                              ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200'
+                              : 'bg-white text-gray-700 border-gray-300 hover:border-black hover:bg-gray-50'
+                            }
+                          `}
+                        >
+                          {variation.size}
+                          {isOutOfStock && ' (Out of Stock)'}
+                          {isSelected && !isOutOfStock && ' ✓'}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  
+                  {/* Variation Price Display */}
+                  {selectedVariation && selectedVariation.price !== product.price && (
+                    <p className="text-sm text-gray-500">
+                      Selected size price: ₦{selectedVariation.price.toLocaleString()}
+                    </p>
+                  )}
+                </div>
+              )}
+              
+              {/* Stock Status */}
+              <div className={`text-sm font-medium ${isInStock ? 'text-green-600' : 'text-red-600'}`}>
+                {isInStock ? `✓ In Stock (${currentStock} available)` : '✗ Out of Stock'}
+              </div>
+              
+              {/* Quantity Selector */}
+              {isInStock && (
+                <div className="space-y-3">
+                  <label className="font-medium text-gray-700">Quantity:</label>
+                  <div className="flex items-center border-2 rounded-lg w-fit">
+                    <button
+                      onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                      className="px-4 py-2 hover:bg-gray-100 transition text-xl font-bold"
+                    >
+                      -
+                    </button>
+                    <span className="px-8 py-2 font-medium min-w-[80px] text-center">
+                      {quantity}
+                    </span>
+                    <button
+                      onClick={() => setQuantity(Math.min(currentStock, quantity + 1))}
+                      className="px-4 py-2 hover:bg-gray-100 transition text-xl font-bold"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              )}
+              
+              {/* Add to Cart Button */}
+              <button
+                onClick={addToCart}
+                disabled={!isInStock || addingToCart}
+                className={`
+                  w-full py-4 rounded-xl font-bold text-lg transition-all
+                  ${isInStock && !addingToCart
+                    ? 'bg-black text-white hover:bg-gray-800 active:bg-gray-900 transform active:scale-95'
+                    : addingToCart
+                    ? 'bg-green-600 text-white'
+                    : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                  }
+                `}
+              >
+                {addingToCart ? '✓ Added to Cart!' : isInStock ? 'Add to Cart' : 'Out of Stock'}
+              </button>
+              
+              {/* Description */}
+              {product.description && (
+                <div className="border-t pt-6 mt-4">
+                  <h3 className="font-bold text-lg mb-3">Description</h3>
+                  <div className="text-gray-600 whitespace-pre-line leading-relaxed">
+                    {product.description}
+                  </div>
+                </div>
+              )}
+              
+              {/* Shipping Info */}
+              <div className="border-t pt-6 text-sm text-gray-500 space-y-2">
+                <p className="flex items-center gap-2">📦 Free shipping on orders over ₦50,000</p>
+                <p className="flex items-center gap-2">🔄 30-day return policy</p>
+                <p className="flex items-center gap-2">💳 Secure checkout</p>
               </div>
             </div>
           </div>
