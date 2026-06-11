@@ -1,4 +1,5 @@
 "use client";
+
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -24,7 +25,7 @@ export default function NewProductPage() {
     { size: 'Small', price: 0, compare_price: 0, stock: 0, sku: '', weight: '' }
   ]);
 
-  // Form data
+  // Form data (Consistent string initialization prevents controlled vs uncontrolled errors)
   const [formData, setFormData] = useState({
     name: '',
     price: '',
@@ -45,6 +46,18 @@ export default function NewProductPage() {
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [compressionStats, setCompressionStats] = useState<{ [key: string]: string }>({});
+
+  // Calculate total stock from variations (SUM of all variation stocks)
+  const getTotalVariationStock = () => {
+    if (!hasVariations) return 0;
+    return variations.reduce((sum, v) => sum + (Number(v.stock) || 0), 0);
+  };
+
+  // Calculate if product has stock based on total stock
+  const getVariationStockStatus = () => {
+    if (!hasVariations) return formData.in_stock;
+    return getTotalVariationStock() > 0;
+  };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -181,31 +194,57 @@ export default function NewProductPage() {
       allImages = [...uploadedUrls, ...allImages];
     }
 
-    // Prepare variations data
+    // Default basic pricing/stock rules
     let variationsData = null;
+    let calculatedInStock = formData.in_stock;
+    let productStock = Number(formData.stock) || 0;
+    let basePrice = formData.price ? Number(formData.price) : 0;
+    let baseComparePrice = formData.compare_price ? Number(formData.compare_price) : null;
+
     if (hasVariations && variations.length > 0) {
-      // Filter out variations with zero price or empty size
-      const validVariations = variations.filter(v => v.price > 0 && v.size.trim());
-      if (validVariations.length > 0) {
-        variationsData = validVariations;
+      const cleanedVariations = variations
+        .filter(v => v.size.trim() !== '') 
+        .map(v => ({
+          size: v.size,
+          price: Number(v.price) || 0,
+          compare_price: Number(v.compare_price) || 0,
+          stock: Number(v.stock) || 0,
+          sku: v.sku || '',
+          weight: v.weight || '',
+        }));
+
+      if (cleanedVariations.length > 0) {
+        variationsData = cleanedVariations;
+        
+        // Product stock = SUM of variation stocks
+        const totalStock = cleanedVariations.reduce((sum, v) => sum + v.stock, 0);
+        productStock = totalStock;
+        calculatedInStock = totalStock > 0;
+
+        // Fallback pricing logic: Pull baseline prices directly from the first element variant 
+        basePrice = cleanedVariations[0].price;
+        baseComparePrice = cleanedVariations[0].compare_price || null;
+      } else {
+        productStock = 0;
+        calculatedInStock = false;
       }
     }
 
     const productData = {
       name: formData.name,
       category: formData.category,
-      price: formData.price ? Number(formData.price) : 0,
+      price: basePrice,
       cost: formData.cost ? Number(formData.cost) : null,
-      compare_price: formData.compare_price ? Number(formData.compare_price) : null,
+      compare_price: baseComparePrice,
       description: formData.description || null,
-      stock: hasVariations ? 0 : (formData.stock ? Number(formData.stock) : 0), // Stock 0 if has variations
-      in_stock: hasVariations ? true : formData.in_stock, // If variations exist, product is in stock if any variation has stock
+      stock: productStock,
+      in_stock: calculatedInStock,
       featured: formData.featured,
       weight: formData.weight || null,
       brand: formData.brand || null,
       sku: formData.sku || `PRD-${Date.now()}`,
       images: allImages,
-      variations: variationsData, // NEW: Store variations as JSON
+      variations: variationsData,
     };
 
     const { error } = await supabase.from('products').insert([productData]);
@@ -218,6 +257,9 @@ export default function NewProductPage() {
     }
     setLoading(false);
   };
+
+  const totalStock = getTotalVariationStock();
+  const variationStockStatus = getVariationStockStatus();
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -327,7 +369,7 @@ export default function NewProductPage() {
               }}
               className="w-4 h-4"
             />
-            <label htmlFor="hasVariations" className="font-medium">
+            <label htmlFor="hasVariations" className="font-medium cursor-pointer">
               📦 This product has size variations (Small, Medium, Large)
             </label>
           </div>
@@ -340,7 +382,7 @@ export default function NewProductPage() {
                   <label className="block font-medium text-sm">Selling Price (₦) *</label>
                   <input 
                     type="number" 
-                    required 
+                    required={!hasVariations} 
                     value={formData.price} 
                     onChange={(e) => setFormData({...formData, price: e.target.value})} 
                     className="w-full p-2 border rounded" 
@@ -396,6 +438,15 @@ export default function NewProductPage() {
               <h3 className="font-bold text-lg">📏 Size Variations</h3>
               <p className="text-xs text-gray-500 mb-2">Define pricing and stock for each size option</p>
               
+              {/* Show total stock summary */}
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm">
+                <span className="font-medium">📊 Total Available Stock: </span>
+                <span className="font-bold text-green-700">{totalStock} units</span>
+                <span className="text-xs text-gray-500 ml-2">
+                  (Sum of all size stocks)
+                </span>
+              </div>
+              
               {variations.map((variation, index) => (
                 <div key={index} className="border rounded-lg p-4 bg-white">
                   <div className="flex justify-between items-center mb-3">
@@ -429,7 +480,7 @@ export default function NewProductPage() {
                       <label className="block text-xs font-medium mb-1">Price (₦) *</label>
                       <input
                         type="number"
-                        value={variation.price}
+                        value={variation.price || ''}
                         onChange={(e) => updateVariation(index, 'price', Number(e.target.value))}
                         className="w-full p-2 border rounded text-sm"
                         placeholder="Price"
@@ -439,7 +490,7 @@ export default function NewProductPage() {
                       <label className="block text-xs font-medium mb-1">Stock *</label>
                       <input
                         type="number"
-                        value={variation.stock}
+                        value={variation.stock || ''}
                         onChange={(e) => updateVariation(index, 'stock', Number(e.target.value))}
                         className="w-full p-2 border rounded text-sm"
                         placeholder="Quantity"
@@ -520,13 +571,17 @@ export default function NewProductPage() {
             <label className="flex items-center gap-2 cursor-pointer">
               <input 
                 type="checkbox" 
-                checked={formData.in_stock} 
-                onChange={(e) => setFormData({...formData, in_stock: e.target.checked})} 
+                checked={hasVariations ? variationStockStatus : formData.in_stock} 
+                onChange={(e) => !hasVariations && setFormData({...formData, in_stock: e.target.checked})} 
                 className="w-4 h-4"
                 disabled={hasVariations}
               />
               <span className="font-medium text-sm">In Stock</span>
-              {hasVariations && <span className="text-xs text-gray-500">(Auto-managed by variations)</span>}
+              {hasVariations && (
+                <span className="text-xs text-gray-500">
+                  ({variationStockStatus ? '✅ In stock' : '❌ Out of stock'} - based on total stock: {totalStock} units)
+                </span>
+              )}
             </label>
             <label className="flex items-center gap-2 cursor-pointer">
               <input 

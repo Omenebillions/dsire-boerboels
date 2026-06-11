@@ -1,9 +1,9 @@
-// app/pawshop/cart/page.tsx
 "use client";
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
 
 interface CartItem {
   id: number;
@@ -11,6 +11,11 @@ interface CartItem {
   price: number;
   image: string;
   quantity: number;
+  variation?: {
+    size: string;
+    price?: number;
+    stock?: number;
+  };
 }
 
 export default function CartPage() {
@@ -18,31 +23,82 @@ export default function CartPage() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [imageErrors, setImageErrors] = useState<{ [key: string]: boolean }>({});
+  const [productStock, setProductStock] = useState<{ [key: string]: number }>({});
 
   useEffect(() => {
     loadCart();
   }, []);
 
-  const loadCart = () => {
+  const loadCart = async () => {
     const savedCart = JSON.parse(localStorage.getItem('cart') || '[]');
     setCart(savedCart);
+    
+    // Fetch current stock for products in cart
+    await fetchStockForCart(savedCart);
+    
     setLoading(false);
   };
 
-  const updateQuantity = (id: number, newQuantity: number) => {
+  const fetchStockForCart = async (cartItems: CartItem[]) => {
+    const stockMap: { [key: string]: number } = {};
+    
+    for (const item of cartItems) {
+      const { data: product } = await supabase
+        .from('products')
+        .select('stock, variations')
+        .eq('id', item.id)
+        .single();
+      
+      if (product) {
+        if (item.variation && product.variations) {
+          // Find variation stock
+          const variation = product.variations.find((v: any) => v.size === item.variation?.size);
+          const key = `${item.id}-${item.variation.size}`;
+          stockMap[key] = variation?.stock || 0;
+        } else {
+          // Simple product stock
+          stockMap[item.id.toString()] = product.stock || 0;
+        }
+      }
+    }
+    
+    setProductStock(stockMap);
+  };
+
+  const updateQuantity = async (id: number, newQuantity: number, variation?: { size: string }) => {
     if (newQuantity < 1) return;
     
-    const updatedCart = cart.map(item => 
-      item.id === id ? { ...item, quantity: newQuantity } : item
-    );
+    // Check stock availability
+    let maxStock = 0;
+    if (variation) {
+      const key = `${id}-${variation.size}`;
+      maxStock = productStock[key] || 0;
+    } else {
+      maxStock = productStock[id.toString()] || 0;
+    }
+    
+    if (newQuantity > maxStock) {
+      alert(`Sorry, only ${maxStock} items available in stock`);
+      return;
+    }
+    
+    const updatedCart = cart.map(item => {
+      const isMatch = item.id === id && 
+        JSON.stringify(item.variation) === JSON.stringify(variation);
+      return isMatch ? { ...item, quantity: newQuantity } : item;
+    });
     
     setCart(updatedCart);
     localStorage.setItem('cart', JSON.stringify(updatedCart));
     window.dispatchEvent(new Event('cartUpdated'));
   };
 
-  const removeItem = (id: number) => {
-    const updatedCart = cart.filter(item => item.id !== id);
+  const removeItem = (id: number, variation?: { size: string }) => {
+    const updatedCart = cart.filter(item => {
+      const isMatch = item.id === id && 
+        JSON.stringify(item.variation) === JSON.stringify(variation);
+      return !isMatch;
+    });
     setCart(updatedCart);
     localStorage.setItem('cart', JSON.stringify(updatedCart));
     window.dispatchEvent(new Event('cartUpdated'));
@@ -113,73 +169,83 @@ export default function CartPage() {
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Cart Items */}
           <div className="lg:col-span-2 space-y-4">
-            {cart.map((item) => (
-              <div key={item.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex gap-4 hover:shadow-md transition">
-                {/* Product Image */}
-                <Link href={`/pawshop/product/${item.id}`} className="flex-shrink-0">
-                  <div className="w-24 h-24 bg-gray-100 rounded-lg overflow-hidden relative">
-                    {!imageErrors[item.id] ? (
-                      <Image
-                        src={item.image || '/shop/placeholder.jpg'}
-                        alt={item.name}
-                        fill
-                        className="object-cover"
-                        onError={() => setImageErrors(prev => ({ ...prev, [item.id]: true }))}
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-2xl text-gray-400">
-                        🛍️
-                      </div>
-                    )}
-                  </div>
-                </Link>
-
-                {/* Product Details */}
-                <div className="flex-1">
-                  <Link href={`/pawshop/product/${item.id}`}>
-                    <h3 className="font-bold text-lg hover:text-yellow-600 transition line-clamp-1">
-                      {item.name}
-                    </h3>
+            {cart.map((item, index) => {
+              const itemKey = `${item.id}-${item.variation?.size || 'default'}-${index}`;
+              const imageErrorKey = `${item.id}${item.variation?.size || ''}`;
+              
+              return (
+                <div key={itemKey} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex gap-4 hover:shadow-md transition">
+                  {/* Product Image */}
+                  <Link href={`/pawshop/product/${item.id}`} className="flex-shrink-0">
+                    <div className="w-24 h-24 bg-gray-100 rounded-lg overflow-hidden relative">
+                      {!imageErrors[imageErrorKey] ? (
+                        <Image
+                          src={item.image || '/shop/placeholder.jpg'}
+                          alt={item.name}
+                          fill
+                          className="object-cover"
+                          onError={() => setImageErrors(prev => ({ ...prev, [imageErrorKey]: true }))}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-2xl text-gray-400">
+                          🛍️
+                        </div>
+                      )}
+                    </div>
                   </Link>
-                  <p className="text-green-600 font-bold mt-1">₦{item.price.toLocaleString()}</p>
-                  
-                  <div className="flex items-center justify-between mt-3">
-                    <div className="flex items-center border rounded-lg overflow-hidden">
+
+                  {/* Product Details */}
+                  <div className="flex-1">
+                    <Link href={`/pawshop/product/${item.id}`}>
+                      <h3 className="font-bold text-lg hover:text-yellow-600 transition line-clamp-1">
+                        {item.name}
+                      </h3>
+                    </Link>
+                    {item.variation && (
+                      <p className="text-sm text-gray-500 mt-1">
+                        Size: <span className="font-medium">{item.variation.size}</span>
+                      </p>
+                    )}
+                    <p className="text-green-600 font-bold mt-1">₦{item.price.toLocaleString()}</p>
+                    
+                    <div className="flex items-center justify-between mt-3">
+                      <div className="flex items-center border rounded-lg overflow-hidden">
+                        <button
+                          onClick={() => updateQuantity(item.id, item.quantity - 1, item.variation)}
+                          className="px-3 py-1 bg-gray-100 hover:bg-gray-200 transition font-bold"
+                        >
+                          -
+                        </button>
+                        <span className="px-4 py-1 font-medium">{item.quantity}</span>
+                        <button
+                          onClick={() => updateQuantity(item.id, item.quantity + 1, item.variation)}
+                          className="px-3 py-1 bg-gray-100 hover:bg-gray-200 transition font-bold"
+                        >
+                          +
+                        </button>
+                      </div>
                       <button
-                        onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                        className="px-3 py-1 bg-gray-100 hover:bg-gray-200 transition font-bold"
+                        onClick={() => removeItem(item.id, item.variation)}
+                        className="text-red-500 hover:text-red-600 text-sm flex items-center gap-1"
                       >
-                        -
-                      </button>
-                      <span className="px-4 py-1 font-medium">{item.quantity}</span>
-                      <button
-                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                        className="px-3 py-1 bg-gray-100 hover:bg-gray-200 transition font-bold"
-                      >
-                        +
+                        <span>✕</span> Remove
                       </button>
                     </div>
-                    <button
-                      onClick={() => removeItem(item.id)}
-                      className="text-red-500 hover:text-red-600 text-sm flex items-center gap-1"
-                    >
-                      <span>✕</span> Remove
-                    </button>
+                  </div>
+
+                  {/* Item Total */}
+                  <div className="text-right min-w-[100px]">
+                    <p className="text-sm text-gray-500">Total</p>
+                    <p className="font-bold text-lg">₦{(item.price * item.quantity).toLocaleString()}</p>
                   </div>
                 </div>
-
-                {/* Item Total */}
-                <div className="text-right min-w-[100px]">
-                  <p className="text-sm text-gray-500">Total</p>
-                  <p className="font-bold text-lg">₦{(item.price * item.quantity).toLocaleString()}</p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
 
             {/* Continue Shopping Link */}
             <Link 
               href="/pawshop" 
-              className="inline-flex items-center gap-2 text-gray-600 hover:text-black transition mt-4"
+              className="inline-flex items-center gap-2 text-white-600 hover:text-black transition mt-4"
             >
               <span>←</span> Continue Shopping
             </Link>

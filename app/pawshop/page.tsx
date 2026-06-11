@@ -5,16 +5,6 @@ import Link from 'next/link';
 import ProductCard from '@/app/components/Shop/ProductCard';
 import { supabase } from '@/lib/supabase';
 
-interface Variation {
-  size: string;
-  price: number;
-  compare_price?: number;
-  stock: number;
-  in_stock: boolean;
-  sku?: string;
-  weight?: string;
-}
-
 interface Product {
   id: number;
   name: string;
@@ -28,7 +18,7 @@ interface Product {
   stock: number;
   weight?: string;
   brand?: string;
-  variations?: Variation[];
+  variations?: any[];
   created_at?: string;
 }
 
@@ -53,40 +43,36 @@ export default function PawshopPage() {
   const loadProducts = async () => {
     setLoading(true);
    
-    const { data: productsData } = await supabase
+    const { data: productsData, error } = await supabase
       .from('products')
       .select('*')
       .order('created_at', { ascending: false });
    
-    setProducts((productsData as Product[]) || []);
-   
-    const uniqueCategories = productsData
-      ? ['all', ...new Set(productsData.map((p: any) => p.category))]
-      : ['all'];
-   
-    setCategories(uniqueCategories);
+    if (error) {
+      console.error('Error loading products:', error);
+      setProducts([]);
+    } else if (productsData) {
+      // Ensure all stock values are numbers
+      const normalizedProducts = productsData.map(p => ({
+        ...p,
+        stock: typeof p.stock === 'number' ? p.stock : Number(p.stock) || 0,
+        in_stock: p.in_stock === true,
+        variations: p.variations?.map((v: any) => ({
+          ...v,
+          stock: typeof v.stock === 'number' ? v.stock : Number(v.stock) || 0,
+          price: typeof v.price === 'number' ? v.price : Number(v.price) || 0
+        }))
+      }));
+      
+      console.log('Products loaded:', normalizedProducts.map(p => ({ name: p.name, stock: p.stock })));
+      setProducts(normalizedProducts);
+      
+      const uniqueCategories = ['all', ...new Set(productsData.map((p: any) => p.category))];
+      setCategories(uniqueCategories);
+    }
+    
     setLoading(false);
   };
-
-  useEffect(() => {
-    const filterProducts = async () => {
-      if (selectedCategory === 'all') {
-        loadProducts();
-      } else {
-        setLoading(true);
-        const { data } = await supabase
-          .from('products')
-          .select('*')
-          .eq('category', selectedCategory)
-          .order('created_at', { ascending: false });
-       
-        setProducts((data as Product[]) || []);
-        setLoading(false);
-      }
-    };
-   
-    filterProducts();
-  }, [selectedCategory]);
 
   const updateCartCount = () => {
     const cart = JSON.parse(localStorage.getItem('cart') || '[]');
@@ -94,15 +80,6 @@ export default function PawshopPage() {
     setCartCount(count);
   };
 
-  // Improved stock helper - respects per-variation in_stock
-  const hasStock = (product: Product): boolean => {
-    if (product.variations && product.variations.length > 0) {
-      return product.variations.some(v => v.in_stock === true && v.stock > 0);
-    }
-    return product.in_stock && product.stock > 0;
-  };
-
-  // Filter by search
   const filteredProducts = products.filter(product =>
     product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     product.description?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -128,7 +105,6 @@ export default function PawshopPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <div className="bg-white shadow-sm border-b sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -138,7 +114,6 @@ export default function PawshopPage() {
             </div>
            
             <div className="flex items-center gap-4">
-              {/* Search Bar */}
               <input
                 type="text"
                 placeholder="Search products..."
@@ -147,7 +122,6 @@ export default function PawshopPage() {
                 className="w-full md:w-64 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-black"
               />
              
-              {/* Cart Icon */}
               <Link href="/pawshop/cart" className="relative">
                 <div className="bg-black text-white p-3 rounded-full hover:bg-gray-800 transition">
                   🛒
@@ -163,7 +137,6 @@ export default function PawshopPage() {
         </div>
       </div>
 
-      {/* Category Filter */}
       <div className="max-w-7xl mx-auto px-4 py-6">
         <div className="flex gap-2 overflow-x-auto pb-2">
           {categories.map((category) => (
@@ -182,7 +155,6 @@ export default function PawshopPage() {
         </div>
       </div>
 
-      {/* Products Grid */}
       <div className="max-w-7xl mx-auto px-4 pb-12">
         {filteredProducts.length === 0 ? (
           <div className="text-center py-12">
@@ -203,9 +175,6 @@ export default function PawshopPage() {
               <p className="text-sm text-gray-500">
                 {filteredProducts.length} products found
               </p>
-              <p className="text-xs text-gray-400">
-                {filteredProducts.filter(p => p.variations?.length).length} products have size options
-              </p>
             </div>
            
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
@@ -214,7 +183,6 @@ export default function PawshopPage() {
               ))}
             </div>
 
-            {/* WhatsApp Contact Banner */}
             <div className="mt-12 bg-green-50 border border-green-200 rounded-xl p-6 text-center">
               <h3 className="font-bold text-lg mb-2">Need help choosing?</h3>
               <p className="text-gray-600 mb-4">
