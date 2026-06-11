@@ -140,7 +140,7 @@ export default function Page() {
                 </p>
                 <Link 
                   href="/reserve"
-                  className="inline-block bg-gradient-to-r from-yellow-500 to-yellow-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-yellow-600 hover:to-yellow-700 transition transform hover:scale-105"
+                  className="inline-block bg-black text-white border border-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-900 transition transform hover:scale-105"
                 >
                   Reserve a Puppy →
                 </Link>
@@ -164,7 +164,7 @@ export default function Page() {
                 </p>
                 <Link 
                   href="/reserve"
-                  className="inline-block bg-gradient-to-r from-yellow-500 to-yellow-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-yellow-600 hover:to-yellow-700 transition transform hover:scale-105"
+                  className="inline-block bg-black text-white border border-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-900 transition transform hover:scale-105"
                 >
                   Reserve a Puppy →
                 </Link>
@@ -188,7 +188,7 @@ export default function Page() {
                 </p>
                 <Link 
                   href="/reserve"
-                  className="inline-block bg-gradient-to-r from-yellow-500 to-yellow-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-yellow-600 hover:to-yellow-700 transition transform hover:scale-105"
+                  className="inline-block bg-black text-white border border-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-900 transition transform hover:scale-105"
                 >
                   Reserve Now →
                 </Link>
