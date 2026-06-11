@@ -86,7 +86,7 @@ export default function FeaturedPuppies() {
               </span>
               <Link
                 href={`/puppies/reserve/${puppy.id}`}
-                className="bg-black text-white border border-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-gray-900 transition"
+                className="bg-W text-white border border-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-gray-900 transition"
               >
                 Reserve
               </Link>
