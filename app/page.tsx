@@ -1,5 +1,6 @@
 // app/page.tsx
 import Link from 'next/link';
+import InstagramFeed from '@/app/components/InstagramFeed';
 import Image from 'next/image';
 import HeroImage from '@/app/components/HeroImage';
 import FeaturedPuppies from '@/app/components/FeaturedPuppies';
@@ -229,10 +230,7 @@ export default function Page() {
             </a>
           </div>
           
-          <div className="fouita-widget-container">
-            <div data-key="Instagram Feed" className="ft" id="ftrc98dpg"></div>
-            <script src="https://wdg.fouita.com/widgets/0x3f59f8.js"></script>
-          </div>
+          <InstagramFeed />
         </div>
       </section>
 
