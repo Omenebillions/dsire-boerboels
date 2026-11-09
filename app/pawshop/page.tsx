@@ -3,8 +3,11 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import ProductCard from '@/app/components/Shop/ProductCard';
+import PromoBanner from '@/app/components/Shop/PromoBanner';
+import FlashSales from '@/app/components/Shop/FlashSales';
 import { supabase } from '@/lib/supabase';
 import type { Product, ProductVariation } from '@/lib/productTypes';
+import { getActivePromotion, getPromoForProduct, type ActivePromotion } from '@/lib/promotions';
 
 interface SupabaseProduct {
   id: number;
@@ -27,6 +30,8 @@ const WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '234701999683
 
 export default function PawshopPage() {
   const [products, setProducts] = useState<Product[]>([]);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [activePromo, setActivePromo] = useState<ActivePromotion | null>(null);
   const [categories, setCategories] = useState<string[]>(['all']);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [cartCount, setCartCount] = useState(0);
@@ -79,6 +84,7 @@ export default function PawshopPage() {
     if (productsData) {
       const normalizedProducts = productsData.map((product) => normalizeProduct(product as SupabaseProduct));
       setProducts(normalizedProducts);
+      setAllProducts(normalizedProducts);
 
       const uniqueCategories = ['all', ...new Set(productsData.map((product) => product.category))];
       setCategories(uniqueCategories);
@@ -104,6 +110,30 @@ export default function PawshopPage() {
     window.addEventListener('cartUpdated', updateCartCount);
     return () => window.removeEventListener('cartUpdated', updateCartCount);
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    getActivePromotion()
+      .then((promotion) => {
+        if (isMounted) setActivePromo(promotion);
+      })
+      .catch((error: unknown) => {
+        console.error('Error loading active promotion:', error);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!activePromo) return;
+    const expirePromotion = () => {
+      if (Date.parse(activePromo.end_time) <= Date.now()) setActivePromo(null);
+    };
+    const intervalId = window.setInterval(expirePromotion, 1000);
+    return () => window.clearInterval(intervalId);
+  }, [activePromo]);
 
   useEffect(() => {
     const filterProducts = async () => {
@@ -157,6 +187,7 @@ export default function PawshopPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <PromoBanner promo={activePromo} />
       <div className="bg-white shadow-sm border-b sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -188,6 +219,12 @@ export default function PawshopPage() {
           </div>
         </div>
       </div>
+
+      {activePromo && (
+        <div className="max-w-7xl mx-auto px-4 pt-6">
+          <FlashSales promo={activePromo} products={allProducts} />
+        </div>
+      )}
 
       <div className="max-w-7xl mx-auto px-4 py-6">
         <div className="flex gap-2 overflow-x-auto pb-2">
@@ -231,7 +268,12 @@ export default function PawshopPage() {
 
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
               {filteredProducts.map((product) => (
-                <ProductCard key={product.id} product={product} />
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  promo={getPromoForProduct(activePromo, product.id)}
+                  themeColor={activePromo?.theme_color}
+                />
               ))}
             </div>
 

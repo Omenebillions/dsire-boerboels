@@ -182,6 +182,16 @@ export default function AdminLayout({
             >
               🛍️ Products
             </Link>
+            <Link
+              href="/admin/promotions"
+              className={`text-sm font-medium whitespace-nowrap ${
+                pathname.includes('/admin/promotions')
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              🏷️ Promotions
+            </Link>
             <Link 
               href="/admin/sales" 
               className={`text-sm font-medium whitespace-nowrap ${

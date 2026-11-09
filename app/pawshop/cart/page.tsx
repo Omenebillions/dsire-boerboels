@@ -245,7 +245,7 @@ export default function CartPage() {
             {/* Continue Shopping Link */}
             <Link 
               href="/pawshop" 
-              className="inline-flex items-center gap-2 text-white-600 hover:text-black transition mt-4"
+              className="mt-4 inline-flex items-center gap-2 rounded-lg bg-black px-5 py-3 font-semibold text-white transition hover:bg-gray-800"
             >
               <span>←</span> Continue Shopping
             </Link>

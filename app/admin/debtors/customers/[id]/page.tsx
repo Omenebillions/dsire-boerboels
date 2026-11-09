@@ -52,7 +52,7 @@ export default function CustomerDetailPage() {
 
     // Fetch customer's debts
     const { data: debtsData } = await supabase
-      .from('debts')
+      .from('debtors')
       .select('*')
       .eq('customer_id', params.id)
       .order('due_date', { ascending: true });

@@ -81,10 +81,7 @@ export default function DebtorsPage() {
       // Fetch debts with filters
       let query = supabase
         .from('debtors')
-        .select(`
-          *,
-          customers (*)
-        `)
+        .select('*')
         .order('due_date', { ascending: true });
       
       if (filter === 'pending') {
@@ -98,6 +95,8 @@ export default function DebtorsPage() {
       const { data: debtsData, error } = await query;
       
       if (error) throw error;
+
+      const customerMap = new Map<number, Customer>((customersData as Customer[] || []).map(customer => [customer.id, customer]));
       
       // Update overdue status and cast status to correct type
       const today = new Date().toISOString().split('T')[0];
@@ -112,6 +111,7 @@ export default function DebtorsPage() {
         return {
           ...debt,
           status,
+          customers: customerMap.get(debt.customer_id) || undefined,
         };
       }) || [];
       

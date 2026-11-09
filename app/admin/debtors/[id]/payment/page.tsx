@@ -24,17 +24,30 @@ export default function RecordPaymentPage() {
 
   const fetchDebt = async () => {
     const { data } = await supabase
-      .from('debts')
-      .select(`
-        *,
-        customers (*)
-      `)
+      .from('debtors')
+      .select('*')
       .eq('id', params.id)
       .single();
+
+    if (!data) {
+      setDebt(null);
+      return;
+    }
+
+    const { data: customerData } = await supabase
+      .from('customers')
+      .select('*')
+      .eq('id', data.customer_id)
+      .single();
     
-    setDebt(data);
+    const debtData = {
+      ...data,
+      customers: customerData || undefined,
+    };
+
+    setDebt(debtData);
     // Suggest full remaining amount
-    setFormData(prev => ({ ...prev, amount: data?.remaining_amount || '' }));
+    setFormData(prev => ({ ...prev, amount: debtData?.remaining_amount || '' }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -63,7 +76,7 @@ export default function RecordPaymentPage() {
 
     // Update debt
     const { error: debtError } = await supabase
-      .from('debts')
+      .from('debtors')
       .update({
         remaining_amount: newRemaining,
         status: newStatus,

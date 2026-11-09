@@ -8,9 +8,11 @@ import type { Product } from '@/lib/productTypes';
 
 interface ProductCardProps {
   product: Product;
+  promo?: { override_before_price: number; override_after_price: number } | null;
+  themeColor?: string;
 }
 
-export default function ProductCard({ product }: ProductCardProps) {
+export default function ProductCard({ product, promo, themeColor }: ProductCardProps) {
   const [isAdding, setIsAdding] = useState(false);
 
   // Check if product has variations
@@ -18,7 +20,17 @@ export default function ProductCard({ product }: ProductCardProps) {
   const hasVariations = variations.length > 0;
 
   // Discount calculation (only for non-variation products)
-  const discount = product.compare_price && product.compare_price > product.price && !hasVariations
+  const activePromo = promo && promo.override_after_price < promo.override_before_price
+    ? promo
+    : null;
+
+  const discount = activePromo
+    ? Math.round(
+        ((activePromo.override_before_price - activePromo.override_after_price) /
+          activePromo.override_before_price) *
+          100
+      )
+    : product.compare_price && product.compare_price > product.price && !hasVariations
     ? Math.round(((product.compare_price - product.price) / product.compare_price) * 100)
     : 0;
 
@@ -35,7 +47,9 @@ export default function ProductCard({ product }: ProductCardProps) {
 
   const hasMultiplePrices = hasVariations && minPrice !== maxPrice;
 
-  const priceDisplay = hasMultiplePrices
+  const priceDisplay = activePromo
+    ? `₦${activePromo.override_after_price.toLocaleString()}`
+    : hasMultiplePrices
     ? `₦${minPrice.toLocaleString()} - ₦${maxPrice.toLocaleString()}`
     : `₦${minPrice.toLocaleString()}`;
 
@@ -92,7 +106,10 @@ export default function ProductCard({ product }: ProductCardProps) {
 
         {/* Discount Badge - only for non-variation products */}
         {discount > 0 && (
-          <span className="absolute top-2 left-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded">
+          <span
+            className={`absolute top-2 ${activePromo ? 'right-2' : 'left-2 bg-red-500'} text-white text-xs font-bold px-2 py-1 rounded`}
+            style={{ backgroundColor: activePromo ? themeColor || '#a31542' : undefined }}
+          >
             -{discount}%
           </span>
         )}
@@ -126,14 +143,21 @@ export default function ProductCard({ product }: ProductCardProps) {
 
         {/* Price Display */}
         <div className="flex items-center gap-2 mb-3">
-          <span className="text-xl font-bold text-green-600">
+          <span
+            className={`text-xl font-bold ${activePromo ? '' : 'text-green-600'}`}
+            style={activePromo ? { color: themeColor || '#a31542' } : undefined}
+          >
             {priceDisplay}
           </span>
-          {product.compare_price && product.compare_price > product.price && !hasVariations && (
+          {activePromo ? (
+            <span className="text-sm text-gray-400 line-through">
+              ₦{activePromo.override_before_price.toLocaleString()}
+            </span>
+          ) : product.compare_price && product.compare_price > product.price && !hasVariations ? (
             <span className="text-sm text-gray-400 line-through">
               ₦{product.compare_price.toLocaleString()}
             </span>
-          )}
+          ) : null}
         </div>
 
         {/* Action Button */}

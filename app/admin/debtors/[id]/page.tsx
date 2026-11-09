@@ -51,17 +51,26 @@ export default function DebtDetailPage() {
   const fetchDebtData = async () => {
     setLoading(true);
     
-    // Fetch debt details with customer
     const { data: debtData } = await supabase
-      .from('debts')
-      .select(`
-        *,
-        customers (*)
-      `)
+      .from('debtors')
+      .select('*')
       .eq('id', params.id)
       .single();
-    
-    setDebt(debtData);
+
+    if (debtData) {
+      const { data: customerData } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('id', debtData.customer_id)
+        .single();
+
+      setDebt({
+        ...debtData,
+        customers: customerData || undefined,
+      });
+    } else {
+      setDebt(null);
+    }
 
     // Fetch payment history
     const { data: paymentsData } = await supabase
@@ -79,7 +88,7 @@ export default function DebtDetailPage() {
     setUpdating(true);
     
     const { error } = await supabase
-      .from('debts')
+      .from('debtors')
       .update({ status: newStatus })
       .eq('id', debt.id);
 

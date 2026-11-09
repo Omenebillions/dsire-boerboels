@@ -15,6 +15,19 @@ interface Variation {
   weight?: string;
 }
 
+interface CartItem {
+  id: number | string;
+  name: string;
+  price: number;
+  image: string;
+  quantity: number;
+  variation?: {
+    size: string;
+    price: number;
+    stock: number;
+  };
+}
+
 interface Product {
   id: number;
   name: string;
@@ -61,7 +74,7 @@ export default function ProductDetailPage() {
       const normalizedProduct = {
         ...data,
         stock: Number(data.stock) || 0,
-        variations: data.variations?.map((v: any) => ({
+        variations: data.variations?.map((v: Variation) => ({
           ...v,
           stock: Number(v.stock) || 0,
           price: Number(v.price) || 0
@@ -82,13 +95,19 @@ export default function ProductDetailPage() {
 
   const addToCart = () => {
     if (!product) return;
+    if (hasVariations && (!selectedVariation || selectedVariation.stock < 1)) return;
+
+    const itemQuantity = selectedVariation
+      ? Math.min(quantity, selectedVariation.stock)
+      : Math.min(quantity, product.stock);
+    if (itemQuantity < 1) return;
     
     const cartItem = {
       id: product.id,
       name: product.name,
       price: selectedVariation ? selectedVariation.price : product.price,
       image: product.images?.[0] || '/product-placeholder.jpg',
-      quantity: quantity,
+      quantity: itemQuantity,
       variation: selectedVariation ? {
         size: selectedVariation.size,
         price: selectedVariation.price,
@@ -97,17 +116,20 @@ export default function ProductDetailPage() {
     };
     
     // Get existing cart
-    const cart = JSON.parse(localStorage.getItem('cart') || '[]');
+    const cart = JSON.parse(localStorage.getItem('cart') || '[]') as CartItem[];
     
     // Check if item already exists (with same variation)
-    const existingIndex = cart.findIndex((item: any) => 
+    const existingIndex = cart.findIndex((item) =>
       item.id === product.id && 
-      JSON.stringify(item.variation) === JSON.stringify(cartItem.variation)
+      item.variation?.size === cartItem.variation?.size
     );
     
     if (existingIndex >= 0) {
       // Update quantity
-      cart[existingIndex].quantity += quantity;
+      cart[existingIndex].quantity = Math.min(
+        cart[existingIndex].quantity + itemQuantity,
+        selectedVariation?.stock ?? product.stock
+      );
     } else {
       // Add new item
       cart.push(cartItem);
@@ -251,7 +273,12 @@ export default function ProductDetailPage() {
                       return (
                         <button
                           key={variation.size}
-                          onClick={() => !isOutOfStock && setSelectedVariation(variation)}
+                          onClick={() => {
+                            if (!isOutOfStock) {
+                              setSelectedVariation(variation);
+                              setQuantity((currentQuantity) => Math.min(currentQuantity, variation.stock));
+                            }
+                          }}
                           disabled={isOutOfStock}
                           className={`
                             px-6 py-2 rounded-full border-2 transition-all
