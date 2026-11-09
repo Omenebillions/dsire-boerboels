@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { getActivePromotion, getPromotionalPrice } from '@/lib/promotions';
 
 interface CartItem {
   id: number;
@@ -31,10 +32,34 @@ export default function CartPage() {
 
   const loadCart = async () => {
     const savedCart = JSON.parse(localStorage.getItem('cart') || '[]');
-    setCart(savedCart);
+    let updatedCart = savedCart as CartItem[];
+
+    try {
+      const promotion = await getActivePromotion();
+      updatedCart = updatedCart.map((item) => {
+        const promotionalPrice = getPromotionalPrice(promotion, item.id);
+        return promotionalPrice === null
+          ? item
+          : {
+              ...item,
+              price: promotionalPrice,
+              variation: item.variation
+                ? { ...item.variation, price: promotionalPrice }
+                : undefined,
+            };
+      });
+      if (JSON.stringify(updatedCart) !== JSON.stringify(savedCart)) {
+        localStorage.setItem('cart', JSON.stringify(updatedCart));
+        window.dispatchEvent(new Event('cartUpdated'));
+      }
+    } catch (error) {
+      console.error('Error applying active promotion to cart:', error);
+    }
+
+    setCart(updatedCart);
     
     // Fetch current stock for products in cart
-    await fetchStockForCart(savedCart);
+    await fetchStockForCart(updatedCart);
     
     setLoading(false);
   };

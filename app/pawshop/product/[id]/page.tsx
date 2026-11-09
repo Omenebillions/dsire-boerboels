@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import { getActivePromotion, getPromotionalPrice, type ActivePromotion } from '@/lib/promotions';
 
 interface Variation {
   size: string;
@@ -52,19 +53,42 @@ export default function ProductDetailPage() {
   const [selectedVariation, setSelectedVariation] = useState<Variation | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [addingToCart, setAddingToCart] = useState(false);
+  const [promotion, setPromotion] = useState<ActivePromotion | null>(null);
+  const [cartCount, setCartCount] = useState(0);
 
   useEffect(() => {
     loadProduct();
   }, [params.id]);
 
+  useEffect(() => {
+    const updateCartCount = () => {
+      const cart = JSON.parse(localStorage.getItem('cart') || '[]') as CartItem[];
+      setCartCount(cart.reduce((count, item) => count + item.quantity, 0));
+    };
+
+    updateCartCount();
+    window.addEventListener('cartUpdated', updateCartCount);
+    window.addEventListener('storage', updateCartCount);
+    return () => {
+      window.removeEventListener('cartUpdated', updateCartCount);
+      window.removeEventListener('storage', updateCartCount);
+    };
+  }, []);
+
   const loadProduct = async () => {
     setLoading(true);
-    
-    const { data, error } = await supabase
-      .from('products')
-      .select('*')
-      .eq('id', params.id)
-      .single();
+    setPromotion(null);
+
+    const promotionPromise = getActivePromotion().catch((error: unknown) => {
+      console.error('Error loading active promotion:', error);
+      return null;
+    });
+    const [productResult, activePromotion] = await Promise.all([
+      supabase.from('products').select('*').eq('id', params.id).single(),
+      promotionPromise,
+    ]);
+    setPromotion(activePromotion);
+    const { data, error } = productResult;
     
     if (error) {
       console.error('Error loading product:', error);
@@ -102,15 +126,17 @@ export default function ProductDetailPage() {
       : Math.min(quantity, product.stock);
     if (itemQuantity < 1) return;
     
+    const regularPrice = selectedVariation ? selectedVariation.price : product.price;
+    const promotionalPrice = getPromotionalPrice(promotion, product.id);
     const cartItem = {
       id: product.id,
       name: product.name,
-      price: selectedVariation ? selectedVariation.price : product.price,
+      price: promotionalPrice ?? regularPrice,
       image: product.images?.[0] || '/product-placeholder.jpg',
       quantity: itemQuantity,
       variation: selectedVariation ? {
         size: selectedVariation.size,
-        price: selectedVariation.price,
+        price: promotionalPrice ?? selectedVariation.price,
         stock: selectedVariation.stock
       } : undefined
     };
@@ -130,6 +156,10 @@ export default function ProductDetailPage() {
         cart[existingIndex].quantity + itemQuantity,
         selectedVariation?.stock ?? product.stock
       );
+      cart[existingIndex].price = cartItem.price;
+      if (cartItem.variation && cart[existingIndex].variation) {
+        cart[existingIndex].variation.price = cartItem.variation.price;
+      }
     } else {
       // Add new item
       cart.push(cartItem);
@@ -175,8 +205,8 @@ export default function ProductDetailPage() {
             <div className="text-6xl mb-4">🔍</div>
             <h1 className="text-2xl font-bold mb-3">Product Not Found</h1>
             <p className="text-gray-500 mb-6">The product you're looking for doesn't exist or has been removed.</p>
-            <Link 
-              href="/pawshop" 
+            <Link
+              href="/pawshop"
               className="inline-block bg-black text-white px-6 py-3 rounded-lg font-bold hover:bg-gray-800 transition"
             >
               Back to Shop
@@ -189,6 +219,11 @@ export default function ProductDetailPage() {
 
   const hasVariations = product.variations && product.variations.length > 0;
   const currentPrice = selectedVariation ? selectedVariation.price : product.price;
+  const promotionalPrice = getPromotionalPrice(promotion, product.id);
+  const displayedPrice = promotionalPrice ?? currentPrice;
+  const displayedComparePrice = promotionalPrice === null
+    ? product.compare_price
+    : (promotion?.products.find((item) => item.product_id === product.id)?.override_before_price);
   const currentStock = hasVariations 
     ? (selectedVariation?.stock || 0)
     : product.stock;
@@ -198,12 +233,30 @@ export default function ProductDetailPage() {
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4">
         {/* Back Button */}
-        <Link 
-          href="/pawshop" 
-          className="inline-flex items-center gap-2 text-gray-600 hover:text-black transition mb-6"
-        >
-          <span>←</span> Back to Shop
-        </Link>
+        <div className="mb-6 flex items-center justify-between">
+          <Link
+            href="/pawshop"
+            className="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-white px-5 py-2.5 font-semibold text-gray-800 shadow-sm transition hover:border-orange-400 hover:bg-orange-50 hover:text-gray-950"
+          >
+            <span aria-hidden="true">←</span> Back to Shop
+          </Link>
+          <Link
+            href="/pawshop/cart"
+            aria-label={`Shopping cart${cartCount > 0 ? `, ${cartCount} items` : ''}`}
+            className="relative flex h-11 w-11 items-center justify-center rounded-full bg-white text-gray-900 shadow-sm ring-1 ring-gray-200 transition hover:bg-orange-50"
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" className="h-5 w-5">
+              <path d="M3 4h2l2.2 10.1a2 2 0 0 0 2 1.6h8.5a2 2 0 0 0 1.9-1.4L21 8H6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              <circle cx="10" cy="20" r="1.2" fill="currentColor" />
+              <circle cx="18" cy="20" r="1.2" fill="currentColor" />
+            </svg>
+            {cartCount > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-white bg-orange-500 px-1 text-[10px] font-bold text-white">
+                {cartCount}
+              </span>
+            )}
+          </Link>
+        </div>
         
         {/* Product Container */}
         <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
@@ -253,10 +306,10 @@ export default function ProductDetailPage() {
               
               {/* Price */}
               <div className="text-3xl lg:text-4xl font-bold text-green-600">
-                ₦{currentPrice.toLocaleString()}
-                {product.compare_price && product.compare_price > currentPrice && (
+                ₦{displayedPrice.toLocaleString()}
+                {displayedComparePrice && displayedComparePrice > displayedPrice && (
                   <span className="text-lg text-gray-400 line-through ml-3">
-                    ₦{product.compare_price.toLocaleString()}
+                    ₦{displayedComparePrice.toLocaleString()}
                   </span>
                 )}
               </div>

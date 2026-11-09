@@ -68,9 +68,19 @@ export default function ResponsiveShop({
       <header id="shop-top" className="sticky top-0 z-40 border-b border-gray-100 bg-white shadow-sm">
         <div className="mx-auto px-4 pb-3 pt-3 md:flex md:max-w-screen-2xl md:items-center md:gap-8 md:px-8 md:py-5">
           <div className="mb-3 flex items-center justify-between md:mb-0 md:shrink-0 md:gap-8">
-            <div>
-              <p className="text-lg font-extrabold leading-tight text-gray-950 md:text-2xl">Dsire Pawshop</p>
-              <p className="text-xs text-gray-500 md:text-sm">Happy pets start here</p>
+            <div className="flex items-center gap-3">
+              <Image
+                src="/pawshop%20logo.jpeg"
+                alt="Dsire Pawshop logo"
+                width={64}
+                height={64}
+                priority
+                className="h-12 w-12 shrink-0 rounded-full object-cover md:h-16 md:w-16"
+              />
+              <div>
+                <p className="text-lg font-extrabold leading-tight text-gray-950 md:text-2xl">Dsire Pawshop</p>
+                <p className="text-xs text-gray-500 md:text-sm">Happy pets start here</p>
+              </div>
             </div>
             <Link
               href="/pawshop/cart"

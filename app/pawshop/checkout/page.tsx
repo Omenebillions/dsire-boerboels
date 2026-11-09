@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { supabase } from '@/lib/supabase';
+import { getActivePromotion, getPromotionalPrice } from '@/lib/promotions';
 
 interface CartItem {
   id: number;
@@ -100,13 +101,29 @@ export default function CheckoutPage() {
     setOrderReference(`DS-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`);
   }, []);
 
-  const loadCart = () => {
+  const loadCart = async () => {
     const savedCart = JSON.parse(localStorage.getItem('cart') || '[]');
     if (savedCart.length === 0) {
       router.push('/pawshop');
       return;
     }
-    setCart(savedCart);
+
+    let updatedCart = savedCart as CartItem[];
+    try {
+      const promotion = await getActivePromotion();
+      updatedCart = updatedCart.map((item) => {
+        const promotionalPrice = getPromotionalPrice(promotion, item.id);
+        return promotionalPrice === null ? item : { ...item, price: promotionalPrice };
+      });
+      if (JSON.stringify(updatedCart) !== JSON.stringify(savedCart)) {
+        localStorage.setItem('cart', JSON.stringify(updatedCart));
+        window.dispatchEvent(new Event('cartUpdated'));
+      }
+    } catch (error) {
+      console.error('Error applying active promotion at checkout:', error);
+    }
+
+    setCart(updatedCart);
     setLoading(false);
   };
 

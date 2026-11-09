@@ -75,3 +75,13 @@ export function getPromoForProduct(
   if (!promo) return null;
   return promo.products.find((product) => product.product_id === Number(productId)) || null;
 }
+
+export function getPromotionalPrice(
+  promo: ActivePromotion | null,
+  productId: number | string
+): number | null {
+  const productPromo = getPromoForProduct(promo, productId);
+  return productPromo && productPromo.override_after_price < productPromo.override_before_price
+    ? productPromo.override_after_price
+    : null;
+}
