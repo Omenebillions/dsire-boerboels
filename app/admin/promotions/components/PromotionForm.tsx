@@ -132,6 +132,14 @@ export default function PromotionForm({ initialData }: PromotionFormProps) {
         ? 'jpg'
         : compressedFile.name.split('.').pop() || 'img';
       const filePath = `banners/${Date.now()}-${crypto.randomUUID()}.${fileExt}`;
+      const { data: authData, error: authError } =
+  await supabase.auth.getUser();
+
+console.log('SUPABASE AUTH CHECK:', {
+  authenticated: !!authData.user,
+  userId: authData.user?.id,
+  authError: authError?.message,
+});
       const { error: uploadError } = await supabase.storage
         .from('promotion-banners')
         .upload(filePath, compressedFile);

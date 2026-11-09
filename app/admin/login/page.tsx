@@ -25,6 +25,14 @@ export default function AdminLogin() {
       });
 
       if (error) throw error;
+      const { data: sessionCheck, error: sessionCheckError } =
+  await supabase.auth.getSession();
+
+console.log('LOGIN SESSION CHECK:', {
+  hasSession: !!sessionCheck.session,
+  userId: sessionCheck.session?.user.id,
+  error: sessionCheckError?.message,
+});
 
       // Check if user is admin (you can also check admin_roles table)
       const { data: adminData, error: adminError } = await supabase
