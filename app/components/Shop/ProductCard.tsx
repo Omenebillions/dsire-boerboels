@@ -10,9 +10,10 @@ interface ProductCardProps {
   product: Product;
   promo?: { override_before_price: number; override_after_price: number } | null;
   themeColor?: string;
+  compact?: boolean;
 }
 
-export default function ProductCard({ product, promo, themeColor }: ProductCardProps) {
+export default function ProductCard({ product, promo, themeColor, compact = false }: ProductCardProps) {
   const [isAdding, setIsAdding] = useState(false);
 
   // Check if product has variations
@@ -79,7 +80,7 @@ export default function ProductCard({ product, promo, themeColor }: ProductCardP
       cart.push({
         id: product.id,
         name: product.name,
-        price: product.price,
+        price: activePromo?.override_after_price ?? product.price,
         image: product.images?.[0] || '/shop/placeholder.jpg',
         quantity: 1,
       });
@@ -94,57 +95,77 @@ export default function ProductCard({ product, promo, themeColor }: ProductCardP
   };
 
   return (
-    <div className="group bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100">
+    <div className={`group overflow-hidden border border-gray-100 bg-white transition-all duration-300 ${
+      compact
+        ? 'rounded-xl shadow-sm hover:shadow-md'
+        : 'rounded-xl shadow-md hover:shadow-xl'
+    }`}>
       {/* Image Section */}
-      <Link href={`/pawshop/product/${product.id}`} className="relative aspect-square overflow-hidden bg-gray-100 block">
-        <Image
-          src={product.images?.[0] || '/shop/placeholder.jpg'}
-          alt={product.name}
-          fill
-          className="object-cover group-hover:scale-110 transition duration-500"
-        />
+      <div className={`relative block overflow-hidden bg-gray-100 ${compact ? 'aspect-[4/3]' : 'aspect-square'}`}>
+        <Link href={`/pawshop/product/${product.id}`} className="absolute inset-0">
+          <Image
+            src={product.images?.[0] || '/shop/placeholder.jpg'}
+            alt={product.name}
+            fill
+            className="object-cover group-hover:scale-110 transition duration-500"
+          />
 
-        {/* Discount Badge - only for non-variation products */}
-        {discount > 0 && (
-          <span
-            className={`absolute top-2 ${activePromo ? 'right-2' : 'left-2 bg-red-500'} text-white text-xs font-bold px-2 py-1 rounded`}
-            style={{ backgroundColor: activePromo ? themeColor || '#a31542' : undefined }}
-          >
-            -{discount}%
-          </span>
-        )}
-
-        {/* Variations Badge */}
-        {hasVariations && isInStock && (
-          <span className="absolute bottom-2 left-2 bg-black/70 text-white text-xs font-semibold px-2 py-1 rounded-full">
-            {variations.length} sizes
-          </span>
-        )}
-
-        {/* Out of Stock Overlay */}
-        {!isInStock && (
-          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-            <span className="bg-white text-black px-3 py-1 rounded-full text-sm font-bold">
-              Out of Stock
+          {/* Discount Badge - only for non-variation products */}
+          {discount > 0 && (
+            <span
+              className={`absolute top-2 ${activePromo ? 'right-2' : 'left-2 bg-red-500'} text-white text-xs font-bold px-2 py-1 rounded`}
+              style={{ backgroundColor: activePromo ? themeColor || '#a31542' : undefined }}
+            >
+              -{discount}%
             </span>
-          </div>
+          )}
+
+          {/* Variations Badge */}
+          {hasVariations && isInStock && (
+            <span className="absolute bottom-2 left-2 bg-black/70 text-white text-xs font-semibold px-2 py-1 rounded-full">
+              {variations.length} sizes
+            </span>
+          )}
+
+          {/* Out of Stock Overlay */}
+          {!isInStock && (
+            <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+              <span className="bg-white text-black px-3 py-1 rounded-full text-sm font-bold">
+                Out of Stock
+              </span>
+            </div>
+          )}
+        </Link>
+
+        {compact && isInStock && (
+          <button
+            type="button"
+            onClick={addToCart}
+            disabled={isAdding}
+            aria-label={hasVariations ? `Choose a size for ${product.name}` : `Add ${product.name} to cart`}
+            className="absolute bottom-2 right-2 flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-gray-900 text-2xl leading-none text-white shadow-lg hover:bg-gray-700 disabled:opacity-70"
+          >
+            {isAdding ? '✓' : '+'}
+          </button>
         )}
-      </Link>
+      </div>
 
       {/* Content Section */}
-      <div className="p-4">
-        <p className="text-sm text-gray-500 mb-1">{product.category}</p>
+      <div className={compact ? 'p-3' : 'p-4'}>
+        {!compact && <p className="mb-1 text-sm text-gray-500">{product.category}</p>}
 
         <Link href={`/pawshop/product/${product.id}`}>
-          <h3 className="font-bold text-lg mb-2 hover:text-yellow-600 transition line-clamp-2">
+          <h3 className={`mb-2 font-bold hover:text-yellow-600 transition line-clamp-2 ${
+            compact ? 'min-h-10 text-sm' : 'text-lg'
+          }`}>
             {product.name}
           </h3>
         </Link>
 
         {/* Price Display */}
-        <div className="flex items-center gap-2 mb-3">
+        <div className={`mb-3 flex flex-wrap items-center gap-2 ${compact ? 'min-h-7' : ''}`}>
           <span
-            className={`text-xl font-bold ${activePromo ? '' : 'text-green-600'}`}
+            className={`${compact ? 'text-base' : 'text-xl'} font-bold ${activePromo ? '' : 'text-green-600'}`}
             style={activePromo ? { color: themeColor || '#a31542' } : undefined}
           >
             {priceDisplay}
@@ -161,7 +182,7 @@ export default function ProductCard({ product, promo, themeColor }: ProductCardP
         </div>
 
         {/* Action Button */}
-        <button
+        {!compact && <button
           onClick={addToCart}
           disabled={!isInStock || isAdding}
           className={`w-full py-2 rounded-lg font-medium transition flex items-center justify-center gap-2 ${
@@ -178,7 +199,7 @@ export default function ProductCard({ product, promo, themeColor }: ProductCardP
               ? 'Choose Size' 
               : '🛒 Add to Cart'
           }
-        </button>
+        </button>}
       </div>
     </div>
   );

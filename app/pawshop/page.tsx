@@ -1,13 +1,10 @@
 // app/pawshop/page.tsx
 "use client";
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import ProductCard from '@/app/components/Shop/ProductCard';
-import PromoBanner from '@/app/components/Shop/PromoBanner';
-import FlashSales from '@/app/components/Shop/FlashSales';
+import ResponsiveShop from '@/app/pawshop/ResponsiveShop';
 import { supabase } from '@/lib/supabase';
 import type { Product, ProductVariation } from '@/lib/productTypes';
-import { getActivePromotion, getPromoForProduct, type ActivePromotion } from '@/lib/promotions';
+import { getActivePromotion, type ActivePromotion } from '@/lib/promotions';
 
 interface SupabaseProduct {
   id: number;
@@ -25,8 +22,6 @@ interface SupabaseProduct {
   variations?: Array<Record<string, unknown>>;
   created_at?: string;
 }
-
-const WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '2347019996837';
 
 export default function PawshopPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -174,7 +169,7 @@ export default function PawshopPage() {
           <div className="animate-pulse">
             <div className="h-8 bg-gray-200 rounded w-48 mb-2"></div>
             <div className="h-4 bg-gray-200 rounded w-64 mb-8"></div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
               {[...Array(8)].map((_, index) => (
                 <div key={index} className="bg-gray-200 rounded-xl h-64"></div>
               ))}
@@ -186,114 +181,16 @@ export default function PawshopPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <PromoBanner promo={activePromo} />
-      <div className="bg-white shadow-sm border-b sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-              <h1 className="text-3xl md:text-4xl font-bold">Dsire Pawshop</h1>
-              <p className="text-gray-600">Everything your Pet needs</p>
-            </div>
-
-            <div className="flex items-center gap-4">
-              <input
-                type="text"
-                placeholder="Search products..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full md:w-64 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-black"
-              />
-
-              <Link href="/pawshop/cart" className="relative">
-                <div className="bg-black text-white p-3 rounded-full hover:bg-gray-800 transition">
-                  🛒
-                  {cartCount > 0 && (
-                    <span className="absolute -top-2 -right-2 bg-yellow-500 text-black text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center">
-                      {cartCount}
-                    </span>
-                  )}
-                </div>
-              </Link>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {activePromo && (
-        <div className="max-w-7xl mx-auto px-4 pt-6">
-          <FlashSales promo={activePromo} products={allProducts} />
-        </div>
-      )}
-
-      <div className="max-w-7xl mx-auto px-4 py-6">
-        <div className="flex gap-2 overflow-x-auto pb-2">
-          {categories.map((category) => (
-            <button
-              key={category}
-              onClick={() => setSelectedCategory(category)}
-              className={`px-4 py-2 rounded-full font-medium transition whitespace-nowrap ${
-                selectedCategory === category
-                  ? 'bg-black text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-100 border'
-              }`}
-            >
-              {category === 'all' ? 'All Products' : category}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="max-w-7xl mx-auto px-4 pb-12">
-        {filteredProducts.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-gray-500 text-lg">No products found</p>
-            <button
-              onClick={() => {
-                setSelectedCategory('all');
-                setSearchQuery('');
-              }}
-              className="mt-4 text-black underline"
-            >
-              Clear filters
-            </button>
-          </div>
-        ) : (
-          <>
-            <div className="flex justify-between items-center mb-4">
-              <p className="text-sm text-gray-500">
-                {filteredProducts.length} products found
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-              {filteredProducts.map((product) => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  promo={getPromoForProduct(activePromo, product.id)}
-                  themeColor={activePromo?.theme_color}
-                />
-              ))}
-            </div>
-
-            <div className="mt-12 bg-green-50 border border-green-200 rounded-xl p-6 text-center">
-              <h3 className="font-bold text-lg mb-2">Need help choosing?</h3>
-              <p className="text-gray-600 mb-4">
-                Chat with us on WhatsApp for personalized recommendations or size guidance.
-              </p>
-              <a
-                href={`https://wa.me/${WHATSAPP_NUMBER}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 bg-green-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-green-700 transition shadow-md"
-              >
-                <span>💬</span> Chat on WhatsApp
-              </a>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+    <ResponsiveShop
+      products={filteredProducts}
+      allProducts={allProducts}
+      categories={categories}
+      selectedCategory={selectedCategory}
+      onSelectCategory={setSelectedCategory}
+      searchQuery={searchQuery}
+      onSearchChange={setSearchQuery}
+      cartCount={cartCount}
+      promo={activePromo}
+    />
   );
 }

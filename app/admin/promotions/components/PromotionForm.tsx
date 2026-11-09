@@ -128,17 +128,19 @@ export default function PromotionForm({ initialData }: PromotionFormProps) {
             fileType: 'image/jpeg',
             initialQuality: 0.8,
           });
-      const extension = compressedFile.type === 'image/jpeg'
+      const fileExt = compressedFile.type === 'image/jpeg'
         ? 'jpg'
         : compressedFile.name.split('.').pop() || 'img';
-      const filePath = `banners/${crypto.randomUUID()}.${extension}`;
+      const filePath = `banners/${Date.now()}-${crypto.randomUUID()}.${fileExt}`;
       const { error: uploadError } = await supabase.storage
         .from('promotion-banners')
-        .upload(filePath, compressedFile, { upsert: false });
+        .upload(filePath, compressedFile);
 
       if (uploadError) throw uploadError;
-      const { data } = supabase.storage.from('promotion-banners').getPublicUrl(filePath);
-      setBannerUrl(data.publicUrl);
+      const { data: { publicUrl } } = supabase.storage
+        .from('promotion-banners')
+        .getPublicUrl(filePath);
+      setBannerUrl(publicUrl);
     } catch (uploadError) {
       setError(`Banner upload failed: ${errorMessage(uploadError)}`);
     } finally {
@@ -248,7 +250,7 @@ export default function PromotionForm({ initialData }: PromotionFormProps) {
         <input
           id="promotion-banner"
           type="file"
-          accept="image/*"
+          accept="image/jpeg,image/png,image/webp"
           onChange={(event) => {
             const file = event.target.files?.[0];
             if (file) void uploadBanner(file);
