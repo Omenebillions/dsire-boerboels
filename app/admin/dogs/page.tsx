@@ -270,11 +270,26 @@ export default function AdminDogsPage() {
 
   const deleteDog = async (id: number, name: string) => {
     if (confirm(`Are you sure you want to delete ${name}?`)) {
-      const { error } = await supabase.from('dogs').delete().eq('id', id);
-      if (!error) {
-        alert(`✅ ${name} deleted successfully.`);
-        fetchDogs();
+      const { data, error } = await supabase
+        .from('dogs')
+        .delete()
+        .eq('id', id)
+        .select('id')
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error deleting dog:', error);
+        alert(`Unable to delete ${name}: ${error.message}`);
+        return;
       }
+
+      if (!data) {
+        alert(`Unable to delete ${name}. No dog was deleted. Check delete permissions or whether the dog still exists.`);
+        return;
+      }
+
+      alert(`✅ ${name} deleted successfully.`);
+      fetchDogs();
     }
   };
 
