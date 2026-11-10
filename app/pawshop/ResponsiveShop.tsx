@@ -2,7 +2,6 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useRef, useState } from 'react';
 import FlashSales from '@/app/components/Shop/FlashSales';
 import ProductCard from '@/app/components/Shop/ProductCard';
 import { getPromoForProduct, type ActivePromotion } from '@/lib/promotions';
@@ -34,33 +33,17 @@ export default function ResponsiveShop({
   promo,
 }: ResponsiveShopProps) {
   const featuredCategories = categories.filter((category) => category !== 'all').slice(0, 5);
-  const heroSlides = [
-    {
-      image: promo?.banner_url || '/Hero.png',
-      eyebrow: promo ? 'Limited-time offer' : 'Dsire Boerboels',
-      title: promo?.title || 'Everything your pet needs',
-      description: promo
-        ? 'Shop selected products before this offer ends.'
-        : 'Quality essentials for happy, healthy pets.',
-      category: null,
-    },
-    ...featuredCategories.slice(0, 2).map((category) => ({
-      image: allProducts.find((product) => product.category === category)?.images?.[0] || '/Hero.png',
-      eyebrow: 'Shop by category',
-      title: category,
-      description: `Explore our ${category.toLowerCase()} collection.`,
-      category,
-    })),
-  ];
+  const showcaseCategories = featuredCategories.slice(0, 4);
+  const showcaseProducts = allProducts
+    .filter((product) => product.featured && product.in_stock)
+    .concat(allProducts.filter((product) => product.in_stock && !product.featured))
+    .slice(0, 6);
   const whatsappLink = `https://wa.me/${WHATSAPP_NUMBER}`;
-  const heroCarouselRef = useRef<HTMLDivElement>(null);
-  const [activeHeroSlide, setActiveHeroSlide] = useState(0);
-  const categoryColors = [
-    'from-rose-950/80',
-    'from-amber-950/80',
-    'from-sky-950/80',
-    'from-emerald-950/80',
-    'from-violet-950/80',
+  const categoryCardColors = [
+    'bg-rose-100',
+    'bg-amber-100',
+    'bg-sky-100',
+    'bg-emerald-100',
   ];
 
   return (
@@ -126,108 +109,115 @@ export default function ResponsiveShop({
       </header>
 
       <main className="mx-auto max-w-screen-2xl space-y-5 pb-24 md:space-y-10 md:px-8 md:pb-12 lg:px-12">
-        <section aria-label="Featured promotion" className="pt-4 md:pt-8">
-          <div className="mx-4">
-            <div
-              ref={heroCarouselRef}
-              onScroll={(event) => {
-                const carousel = event.currentTarget;
-                setActiveHeroSlide(Math.round(carousel.scrollLeft / carousel.clientWidth));
-              }}
-              role="region"
-              aria-label="Featured shop offers"
-              aria-roledescription="carousel"
-              className="flex snap-x snap-mandatory overflow-x-auto rounded-2xl [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-            >
-              {heroSlides.map((slide, index) => (
-                <article
-                  key={`${slide.eyebrow}-${slide.title}`}
-                  aria-label={`${index + 1} of ${heroSlides.length}: ${slide.title}`}
-                  className="relative h-48 w-full shrink-0 snap-center overflow-hidden bg-gray-950 text-white md:h-72 lg:h-80"
-                >
-                  <Image
-                    src={slide.image}
-                    alt=""
-                    fill
-                    priority={index === 0}
-                    sizes="100vw"
-                    className="object-cover object-center"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-r from-gray-950/90 via-gray-950/55 to-gray-950/10" />
-                  <div className="relative z-10 flex h-full max-w-[82%] flex-col items-start justify-center p-5 md:max-w-[62%] md:p-10 lg:max-w-[55%] lg:p-14">
-                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-orange-300 md:text-sm">
-                      {slide.eyebrow}
-                    </p>
-                    {index === 0 ? (
-                      <h1 className="mt-1 text-2xl font-extrabold leading-tight md:text-4xl lg:text-5xl">{slide.title}</h1>
-                    ) : (
-                      <h2 className="mt-1 text-2xl font-extrabold leading-tight md:text-4xl lg:text-5xl">{slide.title}</h2>
-                    )}
-                    <p className="mt-1 line-clamp-2 text-xs text-white/85 md:mt-3 md:text-base">{slide.description}</p>
+        <section aria-label="Featured shop offers" className="px-4 pt-4 md:px-0 md:pt-8">
+          <div className="grid gap-3 lg:grid-cols-[1.05fr_2fr]">
+            <article className="relative isolate flex min-h-[360px] flex-col overflow-hidden rounded-2xl bg-orange-600 p-5 text-white shadow-sm sm:min-h-[420px] sm:p-8">
+              <Image
+                src={promo?.banner_url || showcaseProducts[0]?.images?.[0] || '/Hero.png'}
+                alt=""
+                fill
+                priority
+                sizes="(min-width: 1024px) 36vw, 100vw"
+                className="absolute inset-0 -z-20 object-cover object-center"
+              />
+              <div className="absolute inset-0 -z-10 bg-gradient-to-b from-orange-600 via-orange-600/90 via-45% to-orange-950/10" />
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-orange-100 sm:text-sm">
+                {promo ? 'Limited-time offer' : 'Dsire Pawshop'}
+              </p>
+              <h1 className="mt-2 max-w-lg text-3xl font-extrabold leading-tight sm:text-4xl lg:text-5xl">
+                {promo?.title || 'Everything for your best friend'}
+              </h1>
+              <p className="mt-2 max-w-md text-sm text-white/90 sm:text-base">
+                {promo ? 'Shop selected favourites before this offer ends.' : 'Good days start with happy, healthy pets.'}
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  document.getElementById(promo ? 'flash-sales' : 'shop-products')
+                    ?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="mt-5 w-fit rounded-full bg-white px-5 py-2.5 text-sm font-bold text-orange-800 transition hover:bg-orange-100"
+              >
+                {promo ? 'Shop the offer' : 'Explore the shop'} <span aria-hidden="true">→</span>
+              </button>
+            </article>
+
+            {showcaseCategories.length > 0 && (
+              <div className="grid grid-cols-2 gap-3">
+                {showcaseCategories.map((category, index) => {
+                  const categoryProduct = allProducts.find((product) => product.category === category);
+
+                  return (
                     <button
                       type="button"
+                      key={category}
                       onClick={() => {
-                        if (slide.category) {
-                          onSelectCategory(slide.category);
-                          document.getElementById('shop-products')?.scrollIntoView({ behavior: 'smooth' });
-                        } else {
-                          document.getElementById(promo ? 'flash-sales' : 'shop-products')
-                            ?.scrollIntoView({ behavior: 'smooth' });
-                        }
+                        onSelectCategory(category);
+                        document.getElementById('shop-products')?.scrollIntoView({ behavior: 'smooth' });
                       }}
-                      className="mt-3 inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-xs font-bold text-gray-950 transition hover:bg-orange-100 md:mt-6 md:px-6 md:py-3 md:text-sm"
+                      className={`group relative flex min-h-40 flex-col overflow-hidden rounded-2xl p-4 text-left shadow-sm transition hover:-translate-y-0.5 sm:min-h-[204px] sm:p-5 ${categoryCardColors[index % categoryCardColors.length]}`}
                     >
-                      Shop now <span aria-hidden="true">→</span>
+                      <span className="relative z-10 max-w-[85%] text-lg font-extrabold leading-tight text-gray-950 sm:text-xl">
+                        Shop {category.toLowerCase()}
+                      </span>
+                      {categoryProduct?.images?.[0] ? (
+                        <span className="absolute inset-x-0 bottom-0 top-12">
+                          <Image
+                            src={categoryProduct.images[0]}
+                            alt=""
+                            fill
+                            sizes="(min-width: 1024px) 22vw, 50vw"
+                            className="object-contain object-bottom p-2 transition duration-300 group-hover:scale-105"
+                          />
+                        </span>
+                      ) : (
+                        <span aria-hidden="true" className="mt-auto self-end text-5xl">🐾</span>
+                      )}
                     </button>
-                  </div>
-                </article>
-              ))}
-            </div>
-            <div className="mt-3 flex justify-center gap-1.5" aria-label="Choose a featured slide">
-              {heroSlides.map((slide, index) => (
-                <button
-                  type="button"
-                  key={`slide-${slide.title}`}
-                  onClick={() => heroCarouselRef.current?.scrollTo({
-                    left: index * (heroCarouselRef.current?.clientWidth || 0),
-                    behavior: 'smooth',
-                  })}
-                  aria-label={`Show slide ${index + 1}: ${slide.title}`}
-                  aria-current={activeHeroSlide === index}
-                  className={`h-2 rounded-full transition-all ${
-                    activeHeroSlide === index ? 'w-6 bg-gray-900' : 'w-2 bg-gray-300'
-                  }`}
-                />
-              ))}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </section>
 
-        {featuredCategories.length > 0 && (
-          <section aria-label="Shop by category">
-            <div className="flex gap-3 overflow-x-auto px-4 pb-1 [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden md:gap-5 md:px-0">
-              {featuredCategories.map((category, index) => {
-                const categoryProduct = allProducts.find((product) => product.category === category);
-                const categoryImage = categoryProduct?.images?.[0] || '/Hero.png';
-
-                return (
-                  <button
-                    type="button"
-                    key={category}
-                    onClick={() => {
-                      onSelectCategory(category);
-                      document.getElementById('shop-products')?.scrollIntoView({ behavior: 'smooth' });
-                    }}
-                    className="relative h-28 w-32 shrink-0 overflow-hidden rounded-xl bg-gray-200 text-left text-white shadow-sm md:h-40 md:w-52 lg:h-48 lg:w-60"
-                  >
-                    <Image src={categoryImage} alt="" fill sizes="128px" className="object-cover" />
-                    <span className={`absolute inset-0 bg-gradient-to-t ${categoryColors[index % categoryColors.length]} via-black/10 to-transparent`} />
-                    <span className="absolute bottom-2 left-2 right-2 line-clamp-2 text-sm font-bold md:bottom-4 md:left-4 md:text-lg">
-                      {category}
-                    </span>
-                  </button>
-                );
-              })}
+        {showcaseProducts.length > 0 && (
+          <section aria-label="Featured products" className="overflow-hidden bg-emerald-950 py-5 text-white md:rounded-2xl md:py-6">
+            <div className="mb-4 flex items-center justify-between px-4 md:px-6">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-emerald-200">Picked for happy pets</p>
+                <h2 className="text-lg font-extrabold sm:text-2xl">Shop customer favourites</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => document.getElementById('shop-products')?.scrollIntoView({ behavior: 'smooth' })}
+                className="shrink-0 text-xs font-bold text-emerald-100 underline underline-offset-4 sm:text-sm"
+              >
+                See all
+              </button>
+            </div>
+            <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto px-4 pb-1 [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden md:gap-3 md:px-6">
+              {showcaseProducts.map((product) => (
+                <Link
+                  key={product.id}
+                  href={`/pawshop/product/${product.id}`}
+                  className="w-36 shrink-0 snap-start overflow-hidden rounded-xl bg-white text-gray-950 shadow-sm transition hover:-translate-y-1 sm:w-44"
+                >
+                  <div className="relative aspect-square bg-gray-50">
+                    <Image
+                      src={product.images?.[0] || '/shop/placeholder.jpg'}
+                      alt={product.name}
+                      fill
+                      sizes="176px"
+                      className="object-contain p-2"
+                    />
+                  </div>
+                  <div className="p-3">
+                    <p className="line-clamp-2 min-h-10 text-sm font-semibold">{product.name}</p>
+                    <p className="mt-1 text-sm font-extrabold text-emerald-800">₦{product.price.toLocaleString()}</p>
+                  </div>
+                </Link>
+              ))}
             </div>
           </section>
         )}
@@ -313,6 +303,35 @@ export default function ResponsiveShop({
         >
           <span aria-hidden="true">💬</span> Need help choosing? Chat with us
         </a>
+
+        <footer aria-label="Pawshop information" className="mx-4 overflow-hidden rounded-2xl bg-amber-50 md:mx-0">
+          <div className="grid gap-3 p-4 sm:grid-cols-2 sm:p-6 lg:grid-cols-4">
+            {[
+              { icon: '🐾', title: 'Made for pets', detail: 'Thoughtful picks for every stage of their life.', color: 'bg-rose-100' },
+              { icon: '🚚', title: 'Delivery you can count on', detail: 'See our delivery information and service areas.', color: 'bg-sky-100' },
+              { icon: '🛒', title: 'Easy checkout', detail: 'Your cart is ready whenever you are.', color: 'bg-emerald-100' },
+              { icon: '💬', title: 'Real help, right here', detail: 'Ask us for help choosing the right product.', color: 'bg-violet-100' },
+            ].map((feature) => (
+              <div key={feature.title} className={`rounded-xl p-4 ${feature.color}`}>
+                <span aria-hidden="true" className="text-2xl">{feature.icon}</span>
+                <h2 className="mt-2 font-extrabold text-gray-950">{feature.title}</h2>
+                <p className="mt-1 text-sm leading-relaxed text-gray-700">{feature.detail}</p>
+              </div>
+            ))}
+          </div>
+          <div className="flex flex-col gap-3 bg-gray-950 px-5 py-5 text-white sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <div>
+              <p className="font-extrabold">Dsire Pawshop</p>
+              <p className="text-sm text-gray-300">Happy pets start here.</p>
+            </div>
+            <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-gray-200">
+              <Link href="/shipping" className="hover:text-white">Shipping</Link>
+              <Link href="/pawshop/cart" className="hover:text-white">Your cart</Link>
+              <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="hover:text-white">Contact us</a>
+              <a href="#shop-top" className="hover:text-white">Back to top ↑</a>
+            </div>
+          </div>
+        </footer>
       </main>
 
       <nav
