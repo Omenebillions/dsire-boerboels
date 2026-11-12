@@ -1,34 +1,173 @@
+
 @import "tailwindcss";
 
+/* =========================================
+   GLOBAL STYLES
+========================================= */
 
-/* Better default text contrast */
 body {
-  @apply text-gray-900 bg-white;
+  @apply bg-white text-gray-900;
 }
 
-/* Improve link visibility */
 a {
-  @apply text-gray-900 hover:text-yellow-600 transition;
+  @apply text-gray-900 transition;
 }
 
-/* Better form element contrast */
-input, select, textarea {
+a:hover {
+  @apply text-yellow-600;
+}
+
+input,
+select,
+textarea {
   @apply border-gray-300 bg-white text-gray-900;
 }
 
-input::placeholder, select::placeholder, textarea::placeholder {
+input::placeholder,
+select::placeholder,
+textarea::placeholder {
   @apply text-gray-400;
 }
 
-/* Improve card text readability */
 .card-text {
   @apply text-gray-800;
 }
 
 .card-label {
-  @apply text-gray-600 font-medium;
+  @apply font-medium text-gray-600;
 }
 
 .card-value {
-  @apply text-gray-900 font-bold;
+  @apply font-bold text-gray-900;
+}
+
+/* =========================================
+   HERO BACKGROUND IMAGE MARQUEE
+   Moves continuously from right to left.
+========================================= */
+
+.promo-marquee-track {
+  display: flex;
+  width: 200%;
+  height: 100%;
+  animation: pawshop-promo-scroll 25s linear infinite;
+  will-change: transform;
+}
+
+.promo-marquee-panel {
+  flex: 0 0 50%;
+  height: 100%;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+@keyframes pawshop-promo-scroll {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* =========================================
+   CUSTOMER FAVOURITES PRODUCT MARQUEE
+   Moves all product cards together.
+========================================= */
+
+.promo-products-viewport {
+  width: 100%;
+  overflow: hidden;
+}
+
+.promo-products-track {
+  display: flex;
+  width: max-content;
+  animation: pawshop-products-scroll 35s linear infinite;
+  will-change: transform;
+}
+
+.promo-products-group {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 12px;
+  padding-right: 12px;
+}
+
+@keyframes pawshop-products-scroll {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* Pause customer favourites when hovered */
+.promo-products-viewport:hover .promo-products-track {
+  animation-play-state: paused;
+}
+
+/* =========================================
+   ACCESSIBILITY
+   Respect reduced-motion preferences.
+========================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  .promo-marquee-track,
+  .promo-products-track {
+    animation: none;
+    transform: none;
+  }
+}
+
+/* HERO RANDOM IMAGE CROSSFADE */
+.hero-crossfade-image {
+  position: absolute;
+  inset: 0;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  will-change: opacity, transform;
+}
+
+.hero-crossfade-active {
+  opacity: 1;
+  transform: scale(1);
+  animation: pawshop-hero-zoom 6s ease-in-out;
+}
+
+.hero-crossfade-previous {
+  opacity: 0;
+  transform: scale(1.03);
+  animation: pawshop-hero-fade-out 2s ease-in-out;
+}
+
+@keyframes pawshop-hero-zoom {
+  from {
+    transform: scale(1.04);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+@keyframes pawshop-hero-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-crossfade-active,
+  .hero-crossfade-previous {
+    animation: none;
+    transform: none;
+  }
 }
